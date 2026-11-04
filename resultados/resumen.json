@@ -1,6 +1,6 @@
 {
   "entorno": {
-    "python": "3.12.14",
+    "python": "3.13.2",
     "numpy": "2.3.5",
     "scipy": "1.17.0",
     "matplotlib": "3.10.8"
@@ -13,10 +13,10 @@
   "cinematica": {
     "seed": 5285,
     "n_config": 128,
-    "fk_vs_dh_max_m": 1.1857187100668868e-16,
-    "jac_vs_fd_max_m_rad": 9.515310761543105e-11,
+    "fk_vs_dh_max_m": 1.6725469333392293e-16,
+    "jac_vs_fd_max_m_rad": 8.541395368766302e-11,
     "det_max_abs": 1.734723475976807e-17,
-    "ik_max_residual_m": 2.9504581591051765e-16,
+    "ik_max_residual_m": 3.2009291313835888e-16,
     "ik_counts": {
       "regular": 4,
       "codo_extend": 2,
@@ -26,13 +26,30 @@
       "inalcanzable_exterior": 0,
       "inalcanzable_interior": 0
     },
+    "sigma_analitica_vs_svd_max_m_rad": 4.440892098500626e-16,
+    "rango_rtol": 1e-10,
     "ranks": {
       "regular": 3,
       "codo_extend": 2,
       "codo_plegado": 2,
       "eje_base": 2,
       "interseccion": 1
-    }
+    },
+    "familias": {
+      "regular": "ninguna",
+      "codo_extend": "codo",
+      "codo_plegado": "codo",
+      "eje_base": "eje_base",
+      "interseccion": "interseccion"
+    },
+    "pendiente_codo_m_rad": 0.11962719045933286,
+    "pendiente_eje_m_rad": 0.3764306044943742,
+    "barrido_codo_error_relativo_svd_max": 0.018795223731621295,
+    "barrido_eje_error_relativo_svd_max": 3.575765035027686e-16,
+    "umbral_cercania_m_rad": 0.02,
+    "fraccion_volumen_sigma_menor_lambda": 0.011988400147380932,
+    "fraccion_volumen_cerca_eje_base": 0.0019360795937735389,
+    "fraccion_volumen_cerca_codo": 0.010052320553607394
   },
   "articulo": {
     "tabla3": {
@@ -44,13 +61,13 @@
         },
         "y": {
           "n": 26,
-          "mae_mm": 2.0945278971072434,
-          "rmse_mm": 2.6360558060786468
+          "mae_mm": 2.0945278971072456,
+          "rmse_mm": 2.636055806078647
         },
         "z": {
           "n": 19,
-          "mae_mm": 6.3382423240550105,
-          "rmse_mm": 13.236255047214732
+          "mae_mm": 6.338242324055012,
+          "rmse_mm": 13.236255047214733
         }
       },
       "nominal_vs_experimental_sin_fila_26_sensibilidad": {
@@ -61,13 +78,13 @@
         },
         "y": {
           "n": 25,
-          "mae_mm": 1.9744001987763773,
-          "rmse_mm": 2.4874227040062187
+          "mae_mm": 1.9744001987763795,
+          "rmse_mm": 2.487422704006219
         },
         "z": {
           "n": 18,
-          "mae_mm": 3.6550764187895717,
-          "rmse_mm": 4.370115048010706
+          "mae_mm": 3.6550764187895735,
+          "rmse_mm": 4.3701150480107085
         }
       },
       "teoria_impresa_vs_experimental": {
@@ -95,12 +112,12 @@
         },
         "y": {
           "n": 26,
-          "mae_mm": 3.688495026078153,
-          "rmse_mm": 4.291914922255126
+          "mae_mm": 3.6884950260781553,
+          "rmse_mm": 4.291914922255128
         },
         "z": {
           "n": 19,
-          "mae_mm": 5.943319934483118,
+          "mae_mm": 5.94331993448312,
           "rmse_mm": 13.092685110255635
         }
       },
@@ -112,13 +129,13 @@
         },
         "y": {
           "n": 18,
-          "mae_mm": 3.133190704949851,
-          "rmse_mm": 3.553294297714289
+          "mae_mm": 3.133190704949854,
+          "rmse_mm": 3.553294297714292
         },
         "z": {
           "n": 18,
-          "mae_mm": 3.218769452019241,
-          "rmse_mm": 3.6022701041963443
+          "mae_mm": 3.218769452019243,
+          "rmse_mm": 3.6022701041963456
         }
       },
       "filas_1_a_18_l2_mas_5mm_vs_teoria_impresa_sensibilidad": {
@@ -129,13 +146,13 @@
         },
         "y": {
           "n": 18,
-          "mae_mm": 0.08848486724649025,
-          "rmse_mm": 0.0943290903280039
+          "mae_mm": 0.08848486724649342,
+          "rmse_mm": 0.09432909032800733
         },
         "z": {
           "n": 18,
-          "mae_mm": 0.010636300557613035,
-          "rmse_mm": 0.016430923939056246
+          "mae_mm": 0.010636300557611457,
+          "rmse_mm": 0.016430923939057773
         }
       },
       "radios_xy_filas_19_a_25_mm": {
@@ -181,43 +198,43 @@
     "regular_pinv": {
       "rmse_mm": 2.7570677310275395,
       "max_error_mm": 26.615198622220678,
-      "max_error_t_ge_1s_mm": 0.09001064849259806,
+      "max_error_t_ge_1s_mm": 0.09001064849259593,
       "max_measurement_bias_m": 0.0,
-      "max_speed_rad_s": 0.4221196789562835,
-      "max_requested_speed_rad_s": 0.4221196789562835,
+      "max_speed_rad_s": 0.4221196789562836,
+      "max_requested_speed_rad_s": 0.4221196789562836,
       "saturated_samples": 0,
-      "min_sigma_actual_m_rad": 0.09527896369986337,
-      "min_sigma_reference_m_rad": 0.09529058342103244,
+      "min_sigma_actual_m_rad": 0.09527896369986334,
+      "min_sigma_reference_m_rad": 0.09529058342103239,
       "dt_s": 0.01,
       "gain": 6.0,
       "damping": 0.0,
       "speed_limit_rad_s": 0.6
     },
     "regular_dls": {
-      "rmse_mm": 2.7636351435646014,
+      "rmse_mm": 2.7636351435646005,
       "max_error_mm": 26.615198622220678,
-      "max_error_t_ge_1s_mm": 0.1494930439013544,
+      "max_error_t_ge_1s_mm": 0.14949304390129536,
       "max_measurement_bias_m": 0.0,
-      "max_speed_rad_s": 0.41163989136943363,
-      "max_requested_speed_rad_s": 0.41163989136943363,
+      "max_speed_rad_s": 0.4116398913694338,
+      "max_requested_speed_rad_s": 0.4116398913694338,
       "saturated_samples": 0,
-      "min_sigma_actual_m_rad": 0.09532488630283655,
-      "min_sigma_reference_m_rad": 0.09529058342103244,
+      "min_sigma_actual_m_rad": 0.09532488630283656,
+      "min_sigma_reference_m_rad": 0.09529058342103239,
       "dt_s": 0.01,
       "gain": 6.0,
       "damping": 0.02,
       "speed_limit_rad_s": 0.6
     },
     "near_singular_pinv": {
-      "rmse_mm": 2.7964260262256375,
+      "rmse_mm": 2.796426026225638,
       "max_error_mm": 26.988644882104484,
-      "max_error_t_ge_1s_mm": 0.0994978966165819,
+      "max_error_t_ge_1s_mm": 0.09949789661656153,
       "max_measurement_bias_m": 0.0,
-      "max_speed_rad_s": 0.4714744156922495,
-      "max_requested_speed_rad_s": 0.4714744156922495,
+      "max_speed_rad_s": 0.47147441569224996,
+      "max_requested_speed_rad_s": 0.47147441569224996,
       "saturated_samples": 0,
-      "min_sigma_actual_m_rad": 0.001268173165184629,
-      "min_sigma_reference_m_rad": 0.0011962667939068002,
+      "min_sigma_actual_m_rad": 0.0012681731651842222,
+      "min_sigma_reference_m_rad": 0.0011962667939067935,
       "dt_s": 0.01,
       "gain": 6.0,
       "damping": 0.0,
@@ -228,41 +245,41 @@
       "max_error_mm": 26.988644882104484,
       "max_error_t_ge_1s_mm": 0.9001387992701968,
       "max_measurement_bias_m": 0.0,
-      "max_speed_rad_s": 0.4829843594597822,
-      "max_requested_speed_rad_s": 0.4829843594597822,
+      "max_speed_rad_s": 0.48298435945978213,
+      "max_requested_speed_rad_s": 0.48298435945978213,
       "saturated_samples": 0,
-      "min_sigma_actual_m_rad": 0.009822997470257564,
-      "min_sigma_reference_m_rad": 0.0011962667939068002,
+      "min_sigma_actual_m_rad": 0.009822997470257538,
+      "min_sigma_reference_m_rad": 0.0011962667939067935,
       "dt_s": 0.01,
       "gain": 6.0,
       "damping": 0.02,
       "speed_limit_rad_s": 0.6
     },
     "near_singular_bias_pinv": {
-      "rmse_mm": 4.061748530033488,
+      "rmse_mm": 4.0617485300308545,
       "max_error_mm": 26.988644882104484,
-      "max_error_t_ge_1s_mm": 18.06285842569308,
+      "max_error_t_ge_1s_mm": 18.06285842569343,
       "max_measurement_bias_m": 0.001,
       "max_speed_rad_s": 0.6,
-      "max_requested_speed_rad_s": 85.02752907426373,
+      "max_requested_speed_rad_s": 85.02752907355989,
       "saturated_samples": 45,
-      "min_sigma_actual_m_rad": 8.278803265181819e-06,
-      "min_sigma_reference_m_rad": 0.0011962667939068002,
+      "min_sigma_actual_m_rad": 8.278803245664123e-06,
+      "min_sigma_reference_m_rad": 0.0011962667939067935,
       "dt_s": 0.01,
       "gain": 6.0,
       "damping": 0.0,
       "speed_limit_rad_s": 0.6
     },
     "near_singular_bias_dls": {
-      "rmse_mm": 2.8398773112182174,
+      "rmse_mm": 2.839877311218218,
       "max_error_mm": 26.988644882104484,
-      "max_error_t_ge_1s_mm": 1.0184149319519764,
+      "max_error_t_ge_1s_mm": 1.0184149319519795,
       "max_measurement_bias_m": 0.001,
-      "max_speed_rad_s": 0.4834724867432715,
-      "max_requested_speed_rad_s": 0.4834724867432715,
+      "max_speed_rad_s": 0.48347248674327203,
+      "max_requested_speed_rad_s": 0.48347248674327203,
       "saturated_samples": 0,
-      "min_sigma_actual_m_rad": 0.006941234221827373,
-      "min_sigma_reference_m_rad": 0.0011962667939068002,
+      "min_sigma_actual_m_rad": 0.006941234221827357,
+      "min_sigma_reference_m_rad": 0.0011962667939067935,
       "dt_s": 0.01,
       "gain": 6.0,
       "damping": 0.02,
@@ -271,34 +288,34 @@
   },
   "dinamica": {
     "amortiguado": {
-      "max_abs_balance_j": 1.872033861261002e-09,
+      "max_abs_balance_j": 1.8720232031199657e-09,
       "cambio_energia_j": -1.3233804182724227,
-      "min_autovalor_m_kg_m2": 0.0008591560554212264,
+      "min_autovalor_m_kg_m2": 0.0008591560554212266,
       "max_asimetria_m_kg_m2": 3.469446951953614e-18,
       "rigidez_nm_rad_asumida": 1.66,
       "amortiguamiento_nm_s_rad_asumido": 1.3
     },
     "conservativo": {
-      "max_abs_balance_j": 4.307930456803888e-09,
-      "cambio_energia_j": 5.7911009321287565e-11,
-      "min_autovalor_m_kg_m2": 0.0008485288235539803,
+      "max_abs_balance_j": 3.848620533375424e-09,
+      "cambio_energia_j": 7.97757415682554e-11,
+      "min_autovalor_m_kg_m2": 0.0008485288235547497,
       "max_asimetria_m_kg_m2": 1.734723475976807e-18,
       "rigidez_nm_rad_asumida": 1.66,
       "amortiguamiento_nm_s_rad_asumido": 0.0
     },
     "rigidez_0p5": {
-      "max_abs_balance_j": 1.8204677765254473e-09,
+      "max_abs_balance_j": 1.8204899809859398e-09,
       "cambio_energia_j": -1.1136578444445082,
-      "min_autovalor_m_kg_m2": 0.0008983175834862484,
+      "min_autovalor_m_kg_m2": 0.0008983175834862481,
       "max_asimetria_m_kg_m2": 1.734723475976807e-18,
       "rigidez_nm_rad_asumida": 0.83,
       "amortiguamiento_nm_s_rad_asumido": 1.3
     },
     "rigidez_1p5": {
-      "max_abs_balance_j": 2.157297229743449e-09,
+      "max_abs_balance_j": 2.1573629549465068e-09,
       "cambio_energia_j": -1.6164266045877902,
-      "min_autovalor_m_kg_m2": 0.0008530464410058305,
-      "max_asimetria_m_kg_m2": 1.734723475976807e-18,
+      "min_autovalor_m_kg_m2": 0.0008530464410058304,
+      "max_asimetria_m_kg_m2": 3.469446951953614e-18,
       "rigidez_nm_rad_asumida": 2.4899999999999998,
       "amortiguamiento_nm_s_rad_asumido": 1.3
     }
