@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#FDF0D5">
+  <title>Ramzy 3R · Grupo 3 · MIA-12</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <img class="uni-logo" src="./assets/uni_logo.png" alt="Escudo de la Universidad Nacional de Ingeniería">
+        <div class="brand-copy">
+          <strong>RAMZY <span>3R</span></strong>
+          <small>Simulador cinemático</small>
+        </div>
+      </div>
+      <div class="course-identity">
+        <span>MAESTRIA EN INTELIGENCIA ARTIFICIAL · 2026-2</span>
+        <strong>MIA-12 Robótica y Sistemas Autónomos</strong>
+      </div>
+      <div class="header-actions">
+        <div class="group-pill">Grupo 3</div>
+        <div class="run-pill"><span class="run-dot"></span><span>DATOS LOCALES</span></div>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="sidebar controls-sidebar" aria-label="Controles de simulación">
+        <div class="side-title">
+          <div class="eyebrow">01 / CONFIGURACIÓN</div>
+          <h1>Simulación 3D</h1>
+          <p>Mueve la cámara y reproduce el seguimiento del efector final.</p>
+        </div>
+
+        <section class="panel-block">
+          <label class="field-label" for="scenarioSelect">ESCENARIO</label>
+          <div class="select-wrap">
+            <select id="scenarioSelect">
+              <option value="regular">Trayectoria regular</option>
+              <option value="near_singular">Cerca de singularidad</option>
+              <option value="near_singular_bias">Singularidad + sesgo de 1 mm</option>
+            </select>
+          </div>
+          <p class="field-help" id="scenarioDescription">Seguimiento sin perturbación cerca de una postura regular.</p>
+        </section>
+
+        <section class="panel-block">
+          <div class="field-label">CONTROLADOR</div>
+          <div class="segmented" role="group" aria-label="Controlador">
+            <button id="methodPinv" class="segment active" type="button" aria-pressed="true">Pseudoinversa</button>
+            <button id="methodDls" class="segment" type="button" aria-pressed="false">DLS</button>
+          </div>
+          <p class="field-help">Misma referencia y estado inicial para ambos métodos.</p>
+        </section>
+
+        <section class="panel-block">
+          <div class="field-label">CAPAS VISIBLES</div>
+          <label class="switch-row" for="showDesired">
+            <span><i class="swatch swatch-cyan"></i> Referencia deseada</span>
+            <input id="showDesired" type="checkbox" checked>
+            <span class="switch" aria-hidden="true"></span>
+          </label>
+          <label class="switch-row" for="showTrail">
+            <span><i class="swatch swatch-orange"></i> Recorrido real</span>
+            <input id="showTrail" type="checkbox" checked>
+            <span class="switch" aria-hidden="true"></span>
+          </label>
+        </section>
+
+        <section class="panel-block">
+          <div class="field-label">CÁMARA</div>
+          <div class="camera-grid" role="group" aria-label="Vista de cámara">
+            <button id="viewIso" class="camera-button active" type="button">Isométrica</button>
+            <button id="viewTop" class="camera-button" type="button">Superior</button>
+            <button id="viewFront" class="camera-button" type="button">Frontal</button>
+          </div>
+          <p class="field-help">Arrastra para girar · rueda para acercar · clic derecho para desplazar.</p>
+        </section>
+
+        <div class="sidebar-note">
+          <span class="note-dot"></span>
+          <div>
+            <strong>Modelo nominal ideal</strong>
+            <span>3 articulaciones · longitudes 40 / 290 / 240 mm</span>
+          </div>
+        </div>
+      </aside>
+
+      <section class="stage" aria-label="Visor 3D del manipulador">
+        <div class="stage-header">
+          <div>
+            <div class="eyebrow">02 / ESCENA</div>
+            <h2 id="sceneTitle">Trayectoria regular</h2>
+          </div>
+          <div class="stage-chip"><span class="chip-cross" aria-hidden="true">✣</span> XYZ <span class="chip-muted">· Z vertical</span></div>
+        </div>
+
+        <div id="viewport" class="viewport">
+          <div class="viewport-grid" aria-hidden="true"></div>
+          <div class="viewport-corner top-left"><span class="live-dot"></span> VISTA 3D <span class="corner-divider">/</span> MODELO 3R</div>
+          <div class="viewport-corner top-right" id="frameBadge">FRAME —</div>
+          <div class="viewport-corner bottom-left"><span class="view-icon">↔</span> ORBITAR · ZOOM · DESPLAZAR</div>
+          <div class="viewport-corner bottom-right"><span class="legend-line legend-desired"></span> Deseada <span class="legend-line legend-actual"></span> Real</div>
+          <div id="loadingOverlay" class="loading-overlay" role="status"><div class="loading-spinner"></div><strong>Cargando escena 3D…</strong><span>Preparando las trayectorias del robot</span></div>
+          <div id="errorOverlay" class="error-overlay" role="alert" hidden><strong>No se pudo abrir la simulación.</strong><p id="errorMessage"></p><span>Inicia el visor con <code>.\.venv\Scripts\python.exe launch_viewer.py</code>.</span></div>
+        </div>
+
+        <div class="playback">
+          <div class="playback-row">
+            <button id="resetButton" class="icon-button" type="button" aria-label="Volver al inicio" title="Volver al inicio">↺</button>
+            <button id="playButton" class="play-button" type="button" aria-label="Reproducir">▶</button>
+            <div class="time-readout"><strong id="timeCurrent">0.00 s</strong><span>/</span><span id="timeTotal">8.00 s</span></div>
+            <div class="playback-spacer"></div>
+            <label class="speed-control" for="speedSelect">VELOCIDAD
+              <select id="speedSelect">
+                <option value="0.25">0.25×</option>
+                <option value="0.5">0.5×</option>
+                <option value="1" selected>1×</option>
+                <option value="2">2×</option>
+                <option value="4">4×</option>
+              </select>
+            </label>
+            <label class="loop-control" for="loopToggle"><input id="loopToggle" type="checkbox" checked><span>Repetir</span></label>
+          </div>
+          <div class="progress-wrap">
+            <input id="progress" type="range" min="0" max="8" step="0.001" value="0" aria-label="Tiempo de simulación">
+            <div class="progress-ticks"><span>0 s</span><span>2 s</span><span>4 s</span><span>6 s</span><span>8 s</span></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="sidebar telemetry-sidebar" aria-label="Datos de simulación">
+        <div class="side-title telemetry-title">
+          <div class="eyebrow">03 / TELEMETRÍA</div>
+          <h2>Estado del robot</h2>
+          <p>Valores del instante seleccionado.</p>
+        </div>
+
+        <div class="telemetry-card featured">
+          <span class="metric-label">ERROR DEL EFECTOR</span>
+          <div class="big-metric"><strong id="liveError">—</strong><span>mm</span></div>
+          <div id="trackingState" class="tracking-state"><span class="tracking-dot"></span> Seguimiento activo</div>
+        </div>
+
+        <div class="telemetry-card">
+          <span class="metric-label">EFECTOR REAL <span class="metric-sub">XYZ · m</span></span>
+          <div id="actualXYZ" class="coord-value">— / — / —</div>
+          <span class="metric-label second-label">REFERENCIA DESEADA <span class="metric-sub">XYZ · m</span></span>
+          <div id="desiredXYZ" class="coord-value muted-value">— / — / —</div>
+        </div>
+
+        <div class="telemetry-card">
+          <span class="metric-label">ÁNGULOS ARTICULARES</span>
+          <div class="joint-row"><span>q₁</span><strong id="joint1">—</strong><small>°</small></div>
+          <div class="joint-row"><span>q₂</span><strong id="joint2">—</strong><small>°</small></div>
+          <div class="joint-row"><span>q₃</span><strong id="joint3">—</strong><small>°</small></div>
+        </div>
+
+        <div class="telemetry-card compact-card">
+          <span class="metric-label">SINGULARIDAD</span>
+          <div class="split-metric"><span>σ mínima</span><strong id="sigmaMin">—</strong></div>
+          <div class="split-metric"><span>Velocidad saturada</span><strong id="satNow" class="safe">NO</strong></div>
+        </div>
+
+        <div class="summary-card">
+          <div class="eyebrow">RESUMEN DEL CASO</div>
+          <div class="summary-row"><span>RMSE</span><strong id="caseRMSE">—</strong></div>
+          <div class="summary-row"><span>Muestras saturadas</span><strong id="caseSaturations">—</strong></div>
+          <div class="summary-row"><span>Pico de error</span><strong id="caseMaxError">—</strong></div>
+        </div>
+        <p class="source-note" id="sourceName">Cargando datos locales…</p>
+      </aside>
+    </main>
+  </div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<img src="viewer/assets/uni_logo.png" alt="Universidad Nacional de Ingeniería" width="96" align="right">
+
+# Manipulador 3R de Ramzy · simulador 3D en Python
+
+**Grupo 3**<br>
+**MIA-12 Robótica y Sistemas Autónomos**<br>
+**MAESTRIA EN INTELIGENCIA ARTIFICIAL · 2026-2**
+
+Proyecto reproducible de la Universidad Nacional de Ingeniería (UNI).
+
+Reimplementación independiente del modelo nominal de Ramzy, Hammad y Maged
+(2024), *Kinematic and Dynamic Modeling of 3DOF Variable Stiffness Links
+Manipulator with Experimental Validation*, Applied Sciences 14(12), 5285.
+[Artículo y DOI](https://doi.org/10.3390/app14125285).
+
+El proyecto separa la verificación matemática, la comparación parcial con tablas
+del artículo y los experimentos propios. El parcial de la UNI exige MATLAB. Los
+experimentos Python sirven como preparación técnica, referencia numérica y
+material para la discusión con el autor.
+
+## Ejecución en Windows PowerShell
+
+Abre PowerShell dentro de la carpeta del proyecto. Se verificó con Python
+3.13.5 y 3.12.14 y con las versiones fijadas en `requirements.txt`. Comprueba
+que `python --version` indique 3.13 o 3.12 antes de crear el entorno:
+
+```powershell
+python --version
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe run_experiments.py --out "resultados_locales_$(Get-Date -Format yyyyMMdd_HHmmss)"
+```
+
+El nombre con fecha y hora conserva corridas anteriores. Si Windows no reconoce
+`python`, usa la ruta completa a un ejecutable de Python 3.13 o 3.12 para el
+segundo comando. En Linux o macOS, crea el entorno con `python3 -m venv .venv`
+y usa `.venv/bin/python` en los comandos restantes. Añade `--sin-dinamica`
+si solo quieres regenerar la cinemática, el control y la auditoría de tablas.
+La ejecución no descarga los datos ni requiere MATLAB, GPU o credenciales.
+La instalación inicial requiere acceso a los paquetes indicados.
+
+## Visor 3D interactivo
+
+Tras generar una carpeta `resultados_locales*`, abre el manipulador animado con:
+
+```powershell
+.\.venv\Scripts\python.exe .\launch_viewer.py
+```
+
+El comando selecciona la corrida local terminada más reciente y abre una interfaz
+3D en el navegador. Allí puedes girar la cámara, reproducir o pausar el brazo,
+recorrer el tiempo, cambiar la velocidad y comparar la trayectoria del efector
+con la referencia en los seis casos de control. Para usar una corrida concreta,
+añade `--results .\nombre_de_carpeta`. Mantén abierta la terminal del visor;
+`Ctrl+C` detiene el servidor local. El visor usa `127.0.0.1` y los CSV generados
+en este equipo. La biblioteca Three.js está incluida en `viewer/vendor/`, con
+su licencia, y el visor no necesita conexión a una CDN.
+
+La escena anima el modelo cinemático nominal. Los límites de velocidad y el
+seguimiento corresponden a la simulación de control; no son una grabación ni
+una reproducción física del prototipo publicado.
+
+## Experimentos y evidencias
+
+| Experimento | Qué se comprueba | Archivos principales |
+| --- | --- | --- |
+| Directa e inversa | DH frente a la expresión cerrada. Cuatro ramas genéricas de posición, soluciones de borde, eje con base libre y objetivos inalcanzables. | `espacio_ideal.png`, `inversa.csv` |
+| Diferencial y singularidades | Diferencias finitas centrales, determinante analítico y rango por SVD. | `singularidades.csv`, `barrido_codo.csv`, `singularidad.png` |
+| Validación documental | Comparación por componente con la Tabla 3 y recálculo de errores de la muestra de la Tabla 4. | `tabla3_auditoria.csv`, `tabla3.png`, `tabla4.png` |
+| Control cinemático | Pseudoinversa y mínimos cuadrados amortiguados con referencias e inicialización idénticas. | `control_*.csv`, `control_*.png` |
+| Dinámica exploratoria | Positividad y simetría de la masa, conservación de energía o balance con disipación. | `dinamica_*.csv`, `dinamica.png` |
+
+`resultados/resumen.json` contiene las métricas y versiones de la ejecución
+incluida. `data/` contiene las transcripciones publicadas y `tests/` las
+pruebas numéricas. En el código, las posiciones se expresan en metros y los
+ángulos en radianes. Las tablas comparativas del artículo mantienen milímetros.
+
+## Trazabilidad y decisiones del modelo
+
+- **Cinemática nominal**. Se parte del DH estándar de la Tabla 1 y las longitudes
+  de la Tabla 2, en metros, (0.040, 0.290, 0.240). Se reconstruyen las
+  transformaciones y se contrastan con las ecuaciones (6)–(8). Esta construcción
+  resuelve inconsistencias de las expresiones impresas (1)–(5), como rotaciones
+  con una fila nula o la última fila de una transformación con cero en su
+  última entrada. En la inversa se usa la altura relativa al hombro y se
+  rederiva la ley de cosenos, tomando (9)–(12) como antecedente.
+- **Posición y alcance**. La inversa y el control resuelven la tarea XYZ. Las
+  ramas analíticas y el espacio ideal admiten todo el dominio angular y
+  omiten límites mecánicos, obstáculos y deformación. El determinante
+  es `-l2*l3*r*sin(q3)` para el orden XYZ, con
+  `r=l2*cos(q2)+l3*cos(q2+q3)`. La pérdida de rango se verifica con SVD,
+  incluso en la intersección de las dos familias singulares.
+- **Evidencia medida**. Las 26 filas de la Tabla 3 (§4.2) combinan proyecciones.
+  Los blancos se conservan. El MAE del modelo nominal frente a las mediciones
+  es 1.95, 2.09 y 6.34 mm en X, Y y Z, con 7, 26 y 19 datos por eje.
+  La Tabla 4 (p. 18) aporta una muestra de 26 tiempos, cuyos errores se
+  recalculan por separado. La muestra carece de las entradas y estados
+  completos necesarios para rehacer el ensayo dinámico.
+- **Control propio**. La planta ideal integra la velocidad articular por Euler
+  con 10 ms, ganancia 6 s⁻¹ y límite de 0.60 rad/s por eje. La referencia
+  cartesiana nace de una trayectoria articular alcanzable. Se usa amortiguamiento
+  de 0.020 m/rad para DLS. Además del caso regular y el cercano al codo
+  extendido, se ensaya un sesgo suave de medición de hasta 1 mm en X,
+  concentrado entre 3.6 y 4.4 s. Se mide el error contra la posición real
+  simulada. La comparación se repite a 5, 10 y 20 ms para mostrar la
+  sensibilidad del pico de velocidad solicitado al paso.
+- **Dinámica reconstruida**. Se calcula la masa por energía cinética,
+  `M = sum(m*Jv.T@Jv + Jw.T@I_base@Jw)`, y se construyen gravedad, término
+  cuadrático en velocidad, rigidez y disipación con las ecuaciones (13)–(18)
+  como referencia. La respuesta libre usa cero par externo. Se supone que
+  las inercias CAD son diagonales en los ejes DH del eslabón, que los
+  desplazamientos de centro de masa parten de la articulación proximal,
+  que Z2 es cero y que el reposo elástico es q=0. Se interpretan las
+  constantes 1.66 y 1.3 en N·m/rad y N·m·s/rad respectivamente. Esas unidades
+  y marcos requieren confirmación. Los factores 0.5 y 1.5 de rigidez son
+  perturbaciones paramétricas, sin asociarles valores de presión. Los
+  ensayos publicados corresponden a 2 bar.
+
+## Para discutir con el autor
+
+1. **Geometría y marcos.** ¿La Tabla 3 usa un segundo eslabón de 290 mm o
+   de 295 mm? En las filas 1–18, la variante de +5 mm baja el MAE frente
+   a la teoría impresa de 3.13 a 0.09 mm en Y y de 3.22 a 0.01 mm en Z.
+   El modelo principal conserva 290 mm. ¿Las filas 19–25 se proyectaron
+   con un radio fijo de 535 mm? El alcance radial ideal nominal máximo es
+   530 mm. Las cifras por sí solas no identifican la causa.
+2. **Fila 26.** ¿Qué origen de altura y qué fórmula de error corresponden a
+   esa medición? La teoría impresa es 29.92 mm y la medición es 30.27 mm
+   en Z. La diferencia absoluta es 0.35 mm, mientras que la columna
+   de error indica 0.1225. La sensibilidad del MAE al excluir la fila
+   se reporta aparte y la auditoría principal mantiene la fila.
+3. **Parámetros dinámicos.** ¿En qué marcos y respecto de qué puntos se
+   expresaron los centros de masa y las inercias? ¿Cuál es Z2? ¿Qué
+   unidades, posición de reposo y protocolo de identificación corresponden
+   a la rigidez y el amortiguamiento? ¿Existe una curva presión–rigidez?
+4. **Reproducción del ensayo.** Solicitar el `.slx` de la Figura 3, la
+   inicialización MATLAB, el transformador ángulo–par, las referencias
+   articulares y las series temporales originales con marcos y unidades.
+
+El balance de energía y el residuo directa–inversa comprueban consistencia
+interna. El cotejo con las tablas es parcial. Las simulaciones propias sirven
+para discutir hipótesis y sensibilidad. La validación física del controlador
+y la réplica del ensayo dinámico requieren información adicional del prototipo.

@@ -1,0 +1,16 @@
+# Entorno y cachés locales
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Corridas de cada equipo (la carpeta resultados/ del ZIP es un ejemplo incluido)
+resultados_locales*/
+
+# Archivos personales del editor y del sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
