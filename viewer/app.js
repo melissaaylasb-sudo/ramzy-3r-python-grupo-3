@@ -131,7 +131,7 @@ function buildScene() {
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setClearColor(0x003049, 0);
+  renderer.setClearColor(0x02244a, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.25;
@@ -145,27 +145,27 @@ function buildScene() {
   controls.maxPolarAngle = Math.PI * 0.96;
   controls.target.copy(baseTarget);
 
-  scene.add(new THREE.HemisphereLight(0xfdf0d5, 0x003049, 2.1));
-  const key = new THREE.DirectionalLight(0xfdf0d5, 2.4);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x02244a, 2.1));
+  const key = new THREE.DirectionalLight(0xffffff, 2.4);
   key.position.set(0.65, -0.55, 1.4);
   scene.add(key);
-  const fill = new THREE.DirectionalLight(0x669bbc, 1.4);
+  const fill = new THREE.DirectionalLight(0xa5d0f0, 1.4);
   fill.position.set(-0.7, 0.8, 0.5);
   scene.add(fill);
 
-  const grid = new THREE.GridHelper(1.8, 36, 0x669bbc, 0x29566e);
+  const grid = new THREE.GridHelper(1.8, 36, 0x4a91bb, 0x004b62);
   grid.rotation.x = Math.PI / 2;
   grid.position.z = -0.55;
   grid.material.transparent = true;
   grid.material.opacity = 0.4;
   scene.add(grid);
 
-  const baseMaterial = new THREE.MeshStandardMaterial({ color: 0x66889a, metalness: 0.62, roughness: 0.28 });
-  const ringMaterial = new THREE.MeshStandardMaterial({ color: 0xfdf0d5, metalness: 0.68, roughness: 0.25 });
-  const orangeMaterial = new THREE.MeshStandardMaterial({ color: 0xc1121f, metalness: 0.47, roughness: 0.25, emissive: 0x780000, emissiveIntensity: 0.25 });
-  const cyanMaterial = new THREE.MeshStandardMaterial({ color: 0x669bbc, metalness: 0.48, roughness: 0.23, emissive: 0x003049, emissiveIntensity: 0.25 });
-  const jointMaterial = new THREE.MeshStandardMaterial({ color: 0xfdf0d5, metalness: 0.74, roughness: 0.22 });
-  const effectorMaterial = new THREE.MeshStandardMaterial({ color: 0xfdf0d5, metalness: 0.3, roughness: 0.2, emissive: 0xc1121f, emissiveIntensity: 0.42 });
+  const baseMaterial = new THREE.MeshStandardMaterial({ color: 0x004b62, metalness: 0.62, roughness: 0.28 });
+  const ringMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.68, roughness: 0.25 });
+  const oceanMaterial = new THREE.MeshStandardMaterial({ color: 0x4a91bb, metalness: 0.47, roughness: 0.25, emissive: 0x02244a, emissiveIntensity: 0.2 });
+  const skyMaterial = new THREE.MeshStandardMaterial({ color: 0xa5d0f0, metalness: 0.48, roughness: 0.23, emissive: 0x004b62, emissiveIntensity: 0.2 });
+  const jointMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.74, roughness: 0.22 });
+  const effectorMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.3, roughness: 0.2, emissive: 0x4a91bb, emissiveIntensity: 0.42 });
 
   const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.068, 0.07, 40), baseMaterial);
   pedestal.rotation.x = Math.PI / 2;
@@ -178,8 +178,8 @@ function buildScene() {
   robot = {
     segments: [
       makeSegment(0.023, baseMaterial),
-      makeSegment(0.019, orangeMaterial),
-      makeSegment(0.014, cyanMaterial),
+      makeSegment(0.019, oceanMaterial),
+      makeSegment(0.014, skyMaterial),
     ],
     joints: [
       makeSphere(0.027, ringMaterial),
@@ -189,37 +189,37 @@ function buildScene() {
     ],
   };
 
-  const shoulderRing = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.004, 8, 42), orangeMaterial);
+  const shoulderRing = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.004, 8, 42), oceanMaterial);
   shoulderRing.position.z = 0.04;
   scene.add(shoulderRing);
 
   const axisOrigin = new THREE.Vector3(-0.12, -0.16, -0.52);
-  scene.add(new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), axisOrigin, 0.17, 0xc1121f, 0.035, 0.018));
-  scene.add(new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), axisOrigin, 0.17, 0x669bbc, 0.035, 0.018));
-  scene.add(new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), axisOrigin, 0.17, 0xfdf0d5, 0.035, 0.018));
-  createLabel('X', '#C1121F', axisOrigin.clone().add(new THREE.Vector3(0.205, 0, 0)));
-  createLabel('Y', '#669BBC', axisOrigin.clone().add(new THREE.Vector3(0, 0.205, 0)));
-  createLabel('Z', '#FDF0D5', axisOrigin.clone().add(new THREE.Vector3(0, 0, 0.205)));
+  scene.add(new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), axisOrigin, 0.17, 0x4a91bb, 0.035, 0.018));
+  scene.add(new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), axisOrigin, 0.17, 0xa5d0f0, 0.035, 0.018));
+  scene.add(new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), axisOrigin, 0.17, 0xffffff, 0.035, 0.018));
+  createLabel('X', '#4A91BB', axisOrigin.clone().add(new THREE.Vector3(0.205, 0, 0)));
+  createLabel('Y', '#A5D0F0', axisOrigin.clone().add(new THREE.Vector3(0, 0.205, 0)));
+  createLabel('Z', '#FFFFFF', axisOrigin.clone().add(new THREE.Vector3(0, 0, 0.205)));
 
   desiredMarker = new THREE.Mesh(
     new THREE.SphereGeometry(0.012, 22, 14),
-    new THREE.MeshBasicMaterial({ color: 0x669bbc, transparent: true, opacity: 0.96 }),
+    new THREE.MeshBasicMaterial({ color: 0xa5d0f0, transparent: true, opacity: 0.96 }),
   );
   scene.add(desiredMarker);
   const markerHalo = new THREE.Mesh(
     new THREE.SphereGeometry(0.019, 20, 12),
-    new THREE.MeshBasicMaterial({ color: 0x669bbc, transparent: true, opacity: 0.17, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: 0xa5d0f0, transparent: true, opacity: 0.17, depthWrite: false }),
   );
   desiredMarker.add(markerHalo);
 
   const connectorGeometry = new THREE.BufferGeometry();
   connectorGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
-  errorConnector = new THREE.Line(connectorGeometry, new THREE.LineBasicMaterial({ color: 0xfdf0d5, transparent: true, opacity: 0.78 }));
+  errorConnector = new THREE.Line(connectorGeometry, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.78 }));
   scene.add(errorConnector);
 
   saturationRing = new THREE.Mesh(
     new THREE.TorusGeometry(0.042, 0.005, 8, 48),
-    new THREE.MeshBasicMaterial({ color: 0xc1121f, transparent: true, opacity: 0.95, depthTest: false }),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthTest: false }),
   );
   saturationRing.visible = false;
   scene.add(saturationRing);
@@ -270,7 +270,7 @@ function buildCasePaths() {
 
   desiredLine = new THREE.Line(
     new THREE.BufferGeometry().setFromPoints(desiredPoints),
-    new THREE.LineDashedMaterial({ color: 0x669bbc, dashSize: 0.016, gapSize: 0.009, transparent: true, opacity: 0.82, depthWrite: false }),
+    new THREE.LineDashedMaterial({ color: 0xa5d0f0, dashSize: 0.016, gapSize: 0.009, transparent: true, opacity: 0.82, depthWrite: false }),
   );
   desiredLine.computeLineDistances();
   desiredLine.renderOrder = 3;
@@ -278,7 +278,7 @@ function buildCasePaths() {
 
   trailLine = new THREE.Line(
     new THREE.BufferGeometry().setFromPoints(actualPoints),
-    new THREE.LineBasicMaterial({ color: 0xc1121f, transparent: true, opacity: 0.97, depthWrite: false }),
+    new THREE.LineBasicMaterial({ color: 0x4a91bb, transparent: true, opacity: 0.97, depthWrite: false }),
   );
   trailLine.renderOrder = 4;
   scene.add(trailLine);
@@ -476,7 +476,7 @@ async function start() {
     if (!response.ok) throw new Error('No se encontró data.json (HTTP ' + response.status + ').');
     dataset = await response.json();
     if (!Array.isArray(dataset.cases) || !dataset.cases.length) throw new Error('El archivo data.json no contiene trayectorias.');
-    ui.sourceName.textContent = 'Fuente: ' + (dataset.source_folder || 'resultados locales') + ' · Datos generados en este equipo';
+    ui.sourceName.textContent = 'Trayectorias calculadas con el modelo nominal 3R.';
     selectCase();
     ui.loading.hidden = true;
   } catch (error) {

@@ -142,3 +142,10 @@ El balance de energía y el residuo directa–inversa comprueban consistencia
 interna. El cotejo con las tablas es parcial. Las simulaciones propias sirven
 para discutir hipótesis y sensibilidad. La validación física del controlador
 y la réplica del ensayo dinámico requieren información adicional del prototipo.
+
+## Bibliografía
+
+- Ramzy, M. R., Hammad, S., & Maged, S. A. (2024). *Kinematic and Dynamic
+  Modeling of 3DOF Variable Stiffness Links Manipulator with Experimental
+  Validation*. **Applied Sciences, 14**(12), 5285.
+  https://doi.org/10.3390/app14125285
