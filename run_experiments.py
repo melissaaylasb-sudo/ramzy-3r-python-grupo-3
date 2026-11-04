@@ -12,9 +12,11 @@ import numpy as np
 import scipy
 
 from ramzy3r.benchmarks import dynamic_benchmark, static_benchmark, xyz
-from ramzy3r.control import simulate_control
-from ramzy3r.kinematics import (L1, L2, L3, determinant, fk, frames, inverse_kinematics,
-                                jacobian, jacobian_fd, singular_cases)
+from ramzy3r.control import DLS_DAMPING, simulate_control
+from ramzy3r.kinematics import (L1, L2, L3, SINGULAR_RTOL, determinant, fk, frames,
+                                inverse_kinematics, jacobian, jacobian_fd, numerical_rank,
+                                singular_cases, singular_value_families, singular_values,
+                                singularity_measures)
 
 SEED = 5285
 
@@ -52,21 +54,7 @@ def kinematics_experiment(out):
                               branch.radial_sign, branch.elbow_sign, branch.base_free, residual])
     write_csv(out / "inversa.csv", ["caso", "x_m", "y_m", "z_m", "q1_deg", "q2_deg",
               "q3_deg", "signo_radio", "signo_codo", "base_libre", "residuo_m"], solutions)
-    table = []
-    for name, q in cases.items():
-        sv = np.linalg.svd(jacobian(q), compute_uv=False)
-        table.append([name, *np.rad2deg(q), determinant(q), int(np.sum(sv > 1e-10)), *sv])
-    write_csv(out / "singularidades.csv", ["caso", "q1_deg", "q2_deg", "q3_deg", "det",
-              "rango_tol_1e-10", "sigma1", "sigma2", "sigma3"], table)
-    q3 = np.r_[np.geomspace(1e-6, .7, 120), 0.]
-    sv_min = [np.linalg.svd(jacobian([.2, .3, v]), compute_uv=False)[-1] for v in q3]
-    write_csv(out / "barrido_codo.csv", ["q3_rad", "sigma_min_m_rad"], zip(q3, sv_min))
-    fig, ax = plt.subplots(figsize=(7, 4), layout="constrained")
-    ax.loglog(q3[:-1], sv_min[:-1])
-    ax.set(xlabel="Distancia angular a q₃ = 0 [rad]", ylabel="σ mínima [m/rad]",
-           title="Aproximación a la singularidad de codo")
-    ax.grid(True, which="both", alpha=.25)
-    save_figure(fig, out / "singularidad.png")
+    singular = singularity_experiment(out, qs, cases)
     points = np.array([fk(q) for q in random.uniform(-np.pi, np.pi, (4500, 3))])
     fig = plt.figure(figsize=(7, 5), layout="constrained")
     ax = fig.add_subplot(projection="3d")
@@ -81,7 +69,136 @@ def kinematics_experiment(out):
     return {"seed": SEED, "n_config": len(qs), "fk_vs_dh_max_m": dh_error,
             "jac_vs_fd_max_m_rad": jac_error, "det_max_abs": det_error,
             "ik_max_residual_m": max(row[-1] for row in solutions), "ik_counts": counts,
-            "ranks": {row[0]: row[5] for row in table}}
+            **singular}
+
+
+def _sweep_plot(axs, distance, analytic, svd, sigma_max, title, xlabel):
+    value_ax, error_ax = axs
+    value_ax.loglog(distance, analytic, label="Fórmula cerrada")
+    value_ax.loglog(distance[::8], svd[::8], "o", markersize=3.5, fillstyle="none",
+                    label="SVD numérica")
+    value_ax.axhline(DLS_DAMPING, color="#711610", linewidth=0.9, label="λ del DLS = 0.020 m/rad")
+    value_ax.set(ylabel="σ mínima [m/rad]", title=title)
+    relative = np.maximum(np.abs(svd - analytic) / analytic, 1e-17)
+    error_ax.loglog(distance, relative, color="C1", label="|σ SVD − σ exacta| / σ exacta")
+    error_ax.loglog(distance, np.finfo(float).eps * sigma_max / analytic, "--", color="0.45",
+                    linewidth=0.9, label="ε · σ₁ / σ mín")
+    error_ax.set(xlabel=xlabel, ylabel="Error relativo SVD", ylim=(1e-17, 1.))
+    for ax in axs:
+        ax.grid(True, which="both", alpha=.25)
+
+
+def singularity_experiment(out, qs, cases):
+    """Valores singulares analíticos, barridos hacia ambas familias y mapas."""
+    sigma_error = max(np.max(np.abs(singular_values(q) - np.linalg.svd(jacobian(q), compute_uv=False)))
+                      for q in qs)
+    table, ranks, families = [], {}, {}
+    for name, q in cases.items():
+        m = singularity_measures(q, DLS_DAMPING)
+        sv = np.linalg.svd(jacobian(q), compute_uv=False)
+        ranks[name], families[name] = m["rango"], m["familia"]
+        table.append([name, *np.rad2deg(q), determinant(q), m["manipulabilidad"], *m["sigma"],
+                      m["sigma_eje_base"], m["sigma_codo"], *sv, m["condicion"], m["rango"],
+                      numerical_rank(sv), m["familia"]])
+    write_csv(out / "singularidades.csv", ["caso", "q1_deg", "q2_deg", "q3_deg", "det_m3",
+              "manipulabilidad_m3", "sigma1_m_rad", "sigma2_m_rad", "sigma3_m_rad",
+              "sigma_eje_base_m_rad", "sigma_codo_m_rad", "sigma1_svd_m_rad", "sigma2_svd_m_rad",
+              "sigma3_svd_m_rad", "condicion", "rango_analitico", "rango_svd", "familia"], table)
+
+    # Codo: q3 -> 0 con q2 = 0.3 rad, donde |r| ≈ 0.5 m no interviene.
+    elbow_slope = L2 * L3 / np.hypot(L2 + L3, L3)
+    q3 = np.geomspace(1e-14, .7, 169)
+    elbow = np.array([singular_values([.2, .3, v])[-1] for v in q3])
+    elbow_svd = np.array([np.linalg.svd(jacobian([.2, .3, v]), compute_uv=False)[-1] for v in q3])
+    write_csv(out / "barrido_codo.csv", ["q3_rad", "sigma_min_analitica_m_rad",
+              "sigma_min_svd_m_rad", "error_relativo_svd"],
+              zip(q3, elbow, elbow_svd, np.abs(elbow_svd - elbow) / elbow))
+
+    # Eje de la base: r -> 0 desplazando q2 desde la pose eje_base, con q3 = pi/2 fijo.
+    q2_axis = cases["eje_base"][1]
+    base_slope = np.hypot(L2, L3)
+    delta = np.geomspace(1e-14, .3, 161)
+    axis_q = [[.2, q2_axis + v, np.pi / 2] for v in delta]
+    axis = np.array([singular_values(q)[-1] for q in axis_q])
+    axis_svd = np.array([np.linalg.svd(jacobian(q), compute_uv=False)[-1] for q in axis_q])
+    axis_r = np.array([singular_value_families(q)[0] for q in axis_q])
+    write_csv(out / "barrido_eje.csv", ["delta_q2_rad", "r_m", "sigma_min_analitica_m_rad",
+              "sigma_min_svd_m_rad", "error_relativo_svd"],
+              zip(delta, axis_r, axis, axis_svd, np.abs(axis_svd - axis) / axis))
+
+    fig, axs = plt.subplots(2, 2, figsize=(11, 6.4), sharex="col", layout="constrained",
+                            height_ratios=[1.6, 1.])
+    _sweep_plot(axs[:, 0], q3, elbow, elbow_svd, singular_values([.2, .3, 0.])[0],
+                "Familia de codo · sin q₃ = 0", "Distancia angular a q₃ = 0 [rad]")
+    _sweep_plot(axs[:, 1], delta, axis, axis_svd, singular_values(cases["eje_base"])[0],
+                "Familia del eje de la base · r = 0", "Desplazamiento de q₂ desde r = 0 [rad]")
+    axs[0, 0].legend(fontsize=8)
+    axs[1, 0].legend(fontsize=8, loc="upper right")
+    fig.suptitle("Aproximación a las dos familias singulares")
+    save_figure(fig, out / "singularidad.png")
+
+    # Mapa articular: q1 no interviene en ningún valor singular.
+    grid = np.linspace(-np.pi, np.pi, 721)
+    q2g, q3g = np.meshgrid(grid, grid, indexing="xy")
+    base_g, _, elbow_g = singular_value_families((None, q2g, q3g))
+    sigma_g = np.minimum(base_g, elbow_g)
+    r_g = L2 * np.cos(q2g) + L3 * np.cos(q2g + q3g)
+
+    # Sección cartesiana (radio con signo, z): sigma_min solo depende de la posición,
+    # porque ambas ramas del codo comparten |sin q3| y |r| es la distancia al eje.
+    rho = np.linspace(-.56, .56, 561)
+    height = L1 + np.linspace(-.56, .56, 561)
+    rho_g, z_g = np.meshgrid(rho, height, indexing="xy")
+    cos_q3 = (rho_g**2 + (z_g - L1)**2 - L2**2 - L3**2) / (2 * L2 * L3)
+    reachable = np.abs(cos_q3) <= 1.
+    _, _, elbow_c = singular_value_families((None, 0., np.arccos(np.clip(cos_q3, -1., 1.))))
+    sigma_c = np.where(reachable, np.minimum(np.abs(rho_g), elbow_c), np.nan)
+    # Fracción de volumen: cada celda de la sección barre un anillo de volumen ∝ |rho|.
+    weight = np.where(reachable, np.abs(rho_g), 0.)
+    near = reachable & (sigma_c < DLS_DAMPING)
+    near_base = near & (np.abs(rho_g) <= elbow_c)
+    volume = {"fraccion_volumen_sigma_menor_lambda": float(weight[near].sum() / weight.sum()),
+              "fraccion_volumen_cerca_eje_base": float(weight[near_base].sum() / weight.sum()),
+              "fraccion_volumen_cerca_codo": float(weight[near & ~near_base].sum() / weight.sum())}
+
+    fig, axs = plt.subplots(1, 2, figsize=(12, 5), layout="constrained")
+    levels = np.linspace(-4, np.log10(.4), 25)
+    image = axs[0].contourf(np.rad2deg(q2g), np.rad2deg(q3g),
+                            np.log10(np.maximum(sigma_g, 1e-4)), levels=levels, extend="min")
+    axs[0].contour(np.rad2deg(q2g), np.rad2deg(q3g), r_g, levels=[0.], colors="white",
+                   linewidths=1.3)
+    for value in (-180., 0., 180.):
+        axs[0].axhline(value, color="black", linewidth=1.3)
+    axs[0].contour(np.rad2deg(q2g), np.rad2deg(q3g), sigma_g, levels=[DLS_DAMPING],
+                   colors="#711610", linewidths=0.9, linestyles="--")
+    axs[0].set(xlabel="q₂ [°]", ylabel="q₃ [°]", aspect="equal",
+               title="Espacio articular (válido para todo q₁)")
+    axs[0].plot([], [], color="black", label="sin q₃ = 0 · codo")
+    axs[0].plot([], [], color="white", label="r = 0 · eje de la base")
+    axs[0].plot([], [], "--", color="#711610", label="σ mín = λ")
+    axs[0].legend(fontsize=8, loc="lower left", facecolor="0.85")
+    axs[1].contourf(rho_g, z_g, np.log10(np.maximum(sigma_c, 1e-4)), levels=levels, extend="min")
+    axs[1].contour(rho_g, z_g, np.nan_to_num(sigma_c, nan=1.), levels=[DLS_DAMPING],
+                   colors="#711610", linewidths=0.9, linestyles="--")
+    angle = np.linspace(0, 2 * np.pi, 400)
+    for radius in (L2 + L3, L2 - L3):
+        axs[1].plot(radius * np.cos(angle), L1 + radius * np.sin(angle), color="black",
+                    linewidth=1.3)
+    axs[1].axvline(0., color="white", linewidth=1.3)
+    axs[1].plot(0., L1, "k+", markersize=9)
+    axs[1].set(xlabel="Radio con signo r [m]", ylabel="z [m]", aspect="equal",
+               title="Sección cartesiana que contiene el eje z")
+    bar = fig.colorbar(image, ax=axs, label="σ mínima [m/rad]", shrink=.85, ticks=[-4, -3, -2, -1])
+    bar.ax.set_yticklabels(["≤ 10⁻⁴", "10⁻³", "10⁻²", "10⁻¹"])
+    fig.suptitle("Cercanía a singularidad · σ mínima analítica")
+    save_figure(fig, out / "mapa_singularidades.png")
+
+    return {"sigma_analitica_vs_svd_max_m_rad": float(sigma_error),
+            "rango_rtol": SINGULAR_RTOL, "ranks": ranks, "familias": families,
+            "pendiente_codo_m_rad": float(elbow_slope), "pendiente_eje_m_rad": float(base_slope),
+            "barrido_codo_error_relativo_svd_max": float(np.max(np.abs(elbow_svd - elbow) / elbow)),
+            "barrido_eje_error_relativo_svd_max": float(np.max(np.abs(axis_svd - axis) / axis)),
+            "umbral_cercania_m_rad": DLS_DAMPING, **volume}
 
 
 def paper_experiment(out):

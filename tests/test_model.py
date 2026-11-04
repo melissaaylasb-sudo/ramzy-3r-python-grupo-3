@@ -4,10 +4,12 @@ import numpy as np
 from numpy.testing import assert_allclose
 
 from ramzy3r.benchmarks import dynamic_benchmark, static_benchmark
-from ramzy3r.control import simulate_control
+from ramzy3r.control import DLS_DAMPING, simulate_control
 from ramzy3r.dynamics import _mass_and_gravity, _velocity_bias, simulate_dynamics
-from ramzy3r.kinematics import (L1, L2, L3, determinant, fk, frames, inverse_kinematics,
-                                jacobian, jacobian_fd, singular_cases)
+from ramzy3r.kinematics import (L1, L2, L3, SINGULAR_RTOL, determinant, fk, frames,
+                                inverse_kinematics, jacobian, jacobian_fd, numerical_rank,
+                                singular_cases, singular_value_families, singular_values,
+                                singularity_measures)
 
 
 class KinematicsTests(unittest.TestCase):
@@ -51,10 +53,50 @@ class KinematicsTests(unittest.TestCase):
 
     def test_singular_families(self):
         cases = singular_cases()
-        ranks = {name: np.linalg.matrix_rank(jacobian(q), tol=1e-10)
-                 for name, q in cases.items()}
-        self.assertEqual(ranks, {"regular": 3, "codo_extend": 2, "codo_plegado": 2,
-                                 "eje_base": 2, "interseccion": 1})
+        expected = {"regular": 3, "codo_extend": 2, "codo_plegado": 2,
+                    "eje_base": 2, "interseccion": 1}
+        svd_ranks = {name: numerical_rank(np.linalg.svd(jacobian(q), compute_uv=False))
+                     for name, q in cases.items()}
+        measures = {name: singularity_measures(q) for name, q in cases.items()}
+        self.assertEqual(svd_ranks, expected)
+        self.assertEqual({name: m["rango"] for name, m in measures.items()}, expected)
+        self.assertEqual({name: m["familia"] for name, m in measures.items()},
+                         {"regular": "ninguna", "codo_extend": "codo", "codo_plegado": "codo",
+                          "eje_base": "eje_base", "interseccion": "interseccion"})
+
+    def test_closed_form_singular_values(self):
+        for q in np.random.default_rng(3).uniform(-np.pi, np.pi, (2000, 3)):
+            sigma = singular_values(q)
+            assert_allclose(sigma, np.linalg.svd(jacobian(q), compute_uv=False), atol=1e-15)
+            self.assertAlmostEqual(sigma.prod(), abs(determinant(q)), places=15)
+            sigma_base, _, sigma_elbow = singular_value_families(q)
+            r = L2 * np.cos(q[1]) + L3 * np.cos(q[1] + q[2])
+            self.assertAlmostEqual(sigma_base, abs(r), places=15)
+            # La dirección perdida en el eje de la base es la tangencial (-s1, c1, 0).
+            tangent = np.array([-np.sin(q[0]), np.cos(q[0]), 0.])
+            assert_allclose(jacobian(q).T @ tangent, [r, 0., 0.], atol=1e-15)
+            # El bloque plano solo depende de q3: no cambia al mover q1 o q2.
+            self.assertAlmostEqual(singular_value_families([0., 0., q[2]])[2], sigma_elbow,
+                                   places=15)
+
+    def test_closed_form_keeps_relative_accuracy_near_elbow(self):
+        slope = L2 * L3 / np.hypot(L2 + L3, L3)
+        for q3 in (1e-6, 1e-10, 1e-14):
+            assert_allclose(singular_values([.2, .3, q3])[-1], slope * q3, rtol=1e-6)
+        q_axis = singular_cases()["eje_base"].copy()
+        q_axis[1] += 1e-12
+        assert_allclose(singular_values(q_axis)[-1], np.hypot(L2, L3) * 1e-12, rtol=1e-3)
+
+    def test_rank_tolerance_is_relative_and_shared(self):
+        self.assertEqual(numerical_rank([1., .5, 2e-11]), 2)
+        self.assertEqual(numerical_rank(1e-6 * np.array([1., .5, 2e-11])), 2)
+        self.assertEqual(numerical_rank([0., 0., 0.]), 0)
+        d = simulate_control(fk, jacobian, "near_singular", "dls")
+        self.assertEqual(d["relative_svd_cutoff"], SINGULAR_RTOL)
+        self.assertEqual(d["damping"], DLS_DAMPING)
+        near = singularity_measures([.2, .3, .1])
+        self.assertLess(near["sigma_min"], DLS_DAMPING)
+        self.assertEqual((near["rango"], near["familia"]), (3, "codo"))
 
 
 class ExperimentTests(unittest.TestCase):

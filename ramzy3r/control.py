@@ -5,6 +5,10 @@ from collections.abc import Callable
 import numpy as np
 from numpy.typing import NDArray
 
+from ramzy3r.kinematics import SINGULAR_RTOL
+
+DLS_DAMPING = 0.020  # m/rad
+
 VectorMap = Callable[[NDArray[np.float64]], NDArray[np.float64]]
 
 
@@ -63,10 +67,10 @@ def simulate_control(
 
     duration = 8.0
     gain = 6.0  # 1/s
-    damping = 0.020  # m/rad
+    damping = DLS_DAMPING
     speed_limit = 0.60  # rad/s por articulación
     initial_offset = np.deg2rad([3.0, -3.0, 4.0])
-    relative_svd_cutoff = 1e-12
+    relative_svd_cutoff = SINGULAR_RTOL
     n_steps = int(round(duration / dt))
     if n_steps < 1 or not np.isclose(n_steps * dt, duration, rtol=0, atol=1e-12):
         raise ValueError("dt debe dividir el horizonte de 8 s")

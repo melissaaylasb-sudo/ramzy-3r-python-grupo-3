@@ -66,7 +66,7 @@ una reproducción física del prototipo publicado.
 | Experimento | Qué se comprueba | Archivos principales |
 | --- | --- | --- |
 | Directa e inversa | DH frente a la expresión cerrada. Cuatro ramas genéricas de posición, soluciones de borde, eje con base libre y objetivos inalcanzables. | `espacio_ideal.png`, `inversa.csv` |
-| Diferencial y singularidades | Diferencias finitas centrales, determinante analítico y rango por SVD. | `singularidades.csv`, `barrido_codo.csv`, `singularidad.png` |
+| Diferencial y singularidades | Diferencias finitas centrales, determinante y valores singulares en forma cerrada contrastados con la SVD, rango con tolerancia relativa, barridos hacia ambas familias y mapas de cercanía. | `singularidades.csv`, `barrido_codo.csv`, `barrido_eje.csv`, `singularidad.png`, `mapa_singularidades.png` |
 | Validación documental | Comparación por componente con la Tabla 3 y recálculo de errores de la muestra de la Tabla 4. | `tabla3_auditoria.csv`, `tabla3.png`, `tabla4.png` |
 | Control cinemático | Pseudoinversa y mínimos cuadrados amortiguados con referencias e inicialización idénticas. | `control_*.csv`, `control_*.png` |
 | Dinámica exploratoria | Positividad y simetría de la masa, conservación de energía o balance con disipación. | `dinamica_*.csv`, `dinamica.png` |
@@ -75,6 +75,87 @@ una reproducción física del prototipo publicado.
 incluida. `data/` contiene las transcripciones publicadas y `tests/` las
 pruebas numéricas. En el código, las posiciones se expresan en metros y los
 ángulos en radianes. Las tablas comparativas del artículo mantienen milímetros.
+
+## Singularidades del jacobiano
+
+El jacobiano traslacional `J(q)` (3×3, en m/rad) relaciona la velocidad
+articular con la velocidad del efector, `ṗ = J q̇`. Una configuración es
+singular cuando `J` pierde rango: existe una dirección cartesiana a la que el
+efector no puede moverse, y la inversión de velocidades exige velocidades
+articulares que crecen sin cota. Con `r = L2·cos q2 + L3·cos(q2+q3)`, la
+distancia horizontal del efector al eje z, el determinante es
+
+```
+det J = −L2·L3·r·sin q3
+```
+
+**Valores singulares en forma cerrada.** `J` se factoriza como
+`Rz(q1)·[[0, −h, −a], [r, 0, 0], [0, r, b]]`, con
+`h = L2·sin q2 + L3·sin(q2+q3)`, `a = L3·sin(q2+q3)` y `b = L3·cos(q2+q3)`.
+La primera columna es ortogonal a las otras dos. Por eso los tres valores
+singulares se separan en dos grupos:
+
+- `σ_eje = |r|`, asociado a la dirección tangencial `(−sin q1, cos q1, 0)`.
+- Los dos valores del brazo plano 2R `[[−h, −a], [r, b]]`. Con
+  `T = L2² + 2·L3² + 2·L2·L3·cos q3` y `D = L2·L3·|sin q3|`:
+
+  ```
+  σ₊ = √((T + √(T² − 4D²)) / 2)        σ_codo = D / σ₊
+  ```
+
+Ambos dependen solo de `q3`, de modo que las dos ramas del codo tienen la
+misma `σ` mínima y esta es una función de la posición cartesiana. El
+producto de los tres es `|det J|`, la manipulabilidad de Yoshikawa. La función
+`singular_values(q)` de `ramzy3r/kinematics.py` implementa estas fórmulas, y
+`singularity_measures(q)` añade el rango, el número de condición y la familia
+que limita. Frente a la SVD de NumPy, las fórmulas coinciden con una
+diferencia máxima de 4.4·10⁻¹⁶ m/rad en las 128 configuraciones aleatorias
+del experimento. Las pruebas exigen menos de 10⁻¹⁵ m/rad en otras 2000.
+
+**Familias.** Sin límites articulares, las singularidades son:
+
+| Familia | Condición | Lugar en el espacio | Dirección que se pierde | Comportamiento cercano |
+| --- | --- | --- | --- | --- |
+| Codo extendido | `q3 = 0` | Esfera exterior de radio `L2+L3 = 0.530 m` centrada en el hombro `(0, 0, L1)` | A lo largo del brazo | `σ_min ≈ 0.1196·|q3|` m/rad |
+| Codo plegado | `q3 = π` | Esfera interior de radio `L2−L3 = 0.050 m` | A lo largo del brazo | `σ_min ≈ 0.2839·|q3 − π|` m/rad |
+| Eje de la base | `r = 0` | Eje z | Tangencial: girar `q1` no mueve el efector | `σ_min = |r|` exactamente |
+| Intersección | `r = 0` y `sin q3 = 0` | Puntos del eje z a 0.530 m o 0.050 m del hombro | Dos direcciones (rango 1) | Ambas a la vez |
+
+Las dos familias de codo forman la frontera del espacio alcanzable. No se
+evitan cambiando de rama de la inversa. La familia del eje es interior: allí
+`q1` queda libre (`base_libre` en `inversa.csv`). Si se pondera la sección
+`(r, z)` por `|r|` para obtener el volumen de revolución, cerca del 1.2 % del
+volumen alcanzable tiene `σ_min < 0.020 m/rad`. De ese total, el 0.19 %
+corresponde a la cercanía del eje y el 1.0 % a la de las esferas del codo.
+
+**Criterio numérico.** El proyecto usa una sola tolerancia relativa,
+`SINGULAR_RTOL = 1e-10`: un valor singular con `σ_i ≤ 1e-10·σ_1` cuenta como
+cero. La misma tolerancia decide el rango en `singularidades.csv` y trunca la
+pseudoinversa del control. El rango es un veredicto binario que depende de esa
+tolerancia. Por eso se reporta también `σ_min`, la menor rapidez cartesiana
+que produce una velocidad articular de norma 1 rad/s. Además, se marca como
+cercana a la singularidad toda pose con `σ_min < λ = 0.020 m/rad`. En esa
+zona, el amortiguamiento del control DLS domina la inversión
+`σ/(σ² + λ²)`.
+
+**Por qué la forma cerrada.** La SVD numérica tiene un error absoluto del
+orden de `ε·σ_1`, por lo que su error relativo en `σ_min` crece como
+`ε·σ_1/σ_min`. En el barrido hacia el codo ese error llega al 1.9 % cuando
+`q3 = 10⁻¹⁴` rad, mientras que la fórmula cerrada conserva la pendiente
+lineal. En el barrido hacia el eje, la SVD se mantiene exacta (3.6·10⁻¹⁶ de
+error relativo) porque la columna de `q1` es ortogonal por estructura. La
+fila inferior de `singularidad.png` muestra ambos comportamientos.
+
+**Evidencias.**
+
+- `singularidades.csv` lista, para cada caso de `singular_cases()`, los
+  valores singulares analíticos y por SVD, el rango con ambos métodos, la
+  manipulabilidad, el número de condición y la familia.
+- `barrido_codo.csv` y `barrido_eje.csv` acercan la pose a cada familia,
+  desde 0.7 y 0.3 rad hasta 10⁻¹⁴ rad.
+- `mapa_singularidades.png` dibuja `σ_min` en el plano `(q2, q3)`, válido
+  para cualquier `q1`, y en la sección cartesiana `(r, z)`.
+- `resumen.json` reúne estas métricas bajo `cinematica`.
 
 ## Trazabilidad y decisiones del modelo
 
@@ -87,10 +168,9 @@ pruebas numéricas. En el código, las posiciones se expresan en metros y los
   rederiva la ley de cosenos, tomando (9)–(12) como antecedente.
 - **Posición y alcance**. La inversa y el control resuelven la tarea XYZ. Las
   ramas analíticas y el espacio ideal admiten todo el dominio angular y
-  omiten límites mecánicos, obstáculos y deformación. El determinante
-  es `-l2*l3*r*sin(q3)` para el orden XYZ, con
-  `r=l2*cos(q2)+l3*cos(q2+q3)`. La pérdida de rango se verifica con SVD,
-  incluso en la intersección de las dos familias singulares.
+  omiten límites mecánicos, obstáculos y deformación. Las singularidades
+  del jacobiano XYZ se tratan en la sección
+  [Singularidades del jacobiano](#singularidades-del-jacobiano).
 - **Evidencia medida**. Las 26 filas de la Tabla 3 (§4.2) combinan proyecciones.
   Los blancos se conservan. El MAE del modelo nominal frente a las mediciones
   es 1.95, 2.09 y 6.34 mm en X, Y y Z, con 7, 26 y 19 datos por eje.
