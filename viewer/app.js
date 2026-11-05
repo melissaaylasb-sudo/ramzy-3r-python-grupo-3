@@ -9,6 +9,18 @@ const ui = {
   errorMessage: byId('errorMessage'),
   scenario: byId('scenarioSelect'),
   scenarioDescription: byId('scenarioDescription'),
+  controlsTitle: byId('controlsTitle'),
+  controlsSubtitle: byId('controlsSubtitle'),
+  modeTrajectory: byId('modeTrajectory'),
+  modeInverse: byId('modeInverse'),
+  trajectoryControls: byId('trajectoryControls'),
+  inverseControls: byId('inverseControls'),
+  ikCase: byId('ikCaseSelect'),
+  ikCaseDescription: byId('ikCaseDescription'),
+  ikSolutions: byId('ikSolutions'),
+  ikYawWrap: byId('ikYawWrap'),
+  ikYaw: byId('ikYaw'),
+  ikYawValue: byId('ikYawValue'),
   methodPinv: byId('methodPinv'),
   methodDls: byId('methodDls'),
   showDesired: byId('showDesired'),
@@ -17,7 +29,13 @@ const ui = {
   viewTop: byId('viewTop'),
   viewFront: byId('viewFront'),
   sceneTitle: byId('sceneTitle'),
+  sceneLegend: byId('sceneLegend'),
+  ikSceneHud: byId('ikSceneHud'),
+  ikHudTitle: byId('ikHudTitle'),
+  ikHudAngles: byId('ikHudAngles'),
+  ikHudDetail: byId('ikHudDetail'),
   frameBadge: byId('frameBadge'),
+  playback: byId('playback'),
   play: byId('playButton'),
   reset: byId('resetButton'),
   progress: byId('progress'),
@@ -38,6 +56,27 @@ const ui = {
   caseSaturations: byId('caseSaturations'),
   caseMaxError: byId('caseMaxError'),
   sourceName: byId('sourceName'),
+  trajectoryTelemetry: byId('trajectoryTelemetry'),
+  inverseTelemetry: byId('inverseTelemetry'),
+  ikBranchEquation: byId('ikBranchEquation'),
+  ikStatus: byId('ikStatus'),
+  ikTargetXYZ: byId('ikTargetXYZ'),
+  ikReachStatus: byId('ikReachStatus'),
+  ikRangeMarker: byId('ikRangeMarker'),
+  ikRho: byId('ikRho'),
+  ikHeight: byId('ikHeight'),
+  ikDistance: byId('ikDistance'),
+  ikD: byId('ikD'),
+  ikMathExplanation: byId('ikMathExplanation'),
+  ikSelectedLabel: byId('ikSelectedLabel'),
+  ikSelectedPosture: byId('ikSelectedPosture'),
+  ikSelectedAngles: byId('ikSelectedAngles'),
+  ikQ1: byId('ikQ1'),
+  ikQ2: byId('ikQ2'),
+  ikQ3: byId('ikQ3'),
+  ikResidualLabel: byId('ikResidualLabel'),
+  ikResidual: byId('ikResidual'),
+  ikSelectedNote: byId('ikSelectedNote'),
 };
 
 const scenarioNames = {
@@ -59,6 +98,10 @@ let speed = 1;
 let playing = false;
 let lastTick = null;
 let activeView = 'iso';
+let mode = 'trajectory';
+let activeInverseCase = null;
+let inverseSolutionIndex = 0;
+let trajectoryWasPlaying = false;
 
 let scene;
 let camera;
@@ -70,6 +113,9 @@ let trailLine = null;
 let desiredMarker = null;
 let errorConnector = null;
 let saturationRing = null;
+let inverseReachOuter = null;
+let inverseReachInner = null;
+let inverseGhost = null;
 
 const baseTarget = new THREE.Vector3(0.18, 0, 0.01);
 const yAxis = new THREE.Vector3(0, 1, 0);
@@ -104,15 +150,40 @@ function createLabel(text, color, position) {
 }
 
 function makeSegment(radius, material) {
-  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 1, 18), material);
-  mesh.castShadow = true;
-  scene.add(mesh);
-  return mesh;
+  const link = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 1, 24), material);
+  body.castShadow = true;
+  link.add(body);
+  if (radius < 0.023) {
+    const collarMaterial = new THREE.MeshStandardMaterial({ color: 0xc6dce8, metalness: 0.76, roughness: 0.22 });
+    const insetMaterial = new THREE.MeshStandardMaterial({ color: 0x123b54, metalness: 0.45, roughness: 0.35 });
+    for (const end of [-0.39, 0.39]) {
+      const collar = new THREE.Mesh(new THREE.CylinderGeometry(radius * 1.23, radius * 1.23, 0.065, 24), collarMaterial);
+      collar.position.y = end;
+      link.add(collar);
+    }
+    const inlay = new THREE.Mesh(new THREE.BoxGeometry(radius * 0.26, 0.58, radius * 0.62), insetMaterial);
+    inlay.position.x = radius * 0.96;
+    link.add(inlay);
+  }
+  scene.add(link);
+  return link;
 }
 
-function makeSphere(radius, material) {
+function makeSphere(radius, material, axle = false) {
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 16), material);
   mesh.castShadow = true;
+  if (axle) {
+    const axleMaterial = new THREE.MeshStandardMaterial({ color: 0x133c56, metalness: 0.68, roughness: 0.25 });
+    const capMaterial = new THREE.MeshStandardMaterial({ color: 0xd5e8f0, metalness: 0.72, roughness: 0.2 });
+    const spindle = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.77, radius * 0.77, radius * 2.1, 24), axleMaterial);
+    mesh.add(spindle);
+    for (const side of [-1, 1]) {
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.55, radius * 0.55, 0.003, 24), capMaterial);
+      cap.position.y = side * radius * 1.06;
+      mesh.add(cap);
+    }
+  }
   scene.add(mesh);
   return mesh;
 }
@@ -122,6 +193,20 @@ function setSegment(mesh, a, b) {
   mesh.position.copy(a).add(b).multiplyScalar(0.5);
   mesh.quaternion.setFromUnitVectors(yAxis, direction.clone().normalize());
   mesh.scale.set(1, direction.length(), 1);
+}
+
+function makeReachRings(radius, opacity) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshBasicMaterial({ color: 0xa5d0f0, transparent: true, opacity, depthWrite: false });
+  for (const [x, y] of [[0, 0], [Math.PI / 2, 0], [0, Math.PI / 2]]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.0012, 4, 96), material);
+    ring.rotation.set(x, y, 0);
+    group.add(ring);
+  }
+  group.position.z = 0.04;
+  group.visible = false;
+  scene.add(group);
+  return group;
 }
 
 function buildScene() {
@@ -155,9 +240,9 @@ function buildScene() {
 
   const grid = new THREE.GridHelper(1.8, 36, 0x4a91bb, 0x004b62);
   grid.rotation.x = Math.PI / 2;
-  grid.position.z = -0.55;
+  grid.position.z = -0.115;
   grid.material.transparent = true;
-  grid.material.opacity = 0.4;
+  grid.material.opacity = 0.22;
   scene.add(grid);
 
   const baseMaterial = new THREE.MeshStandardMaterial({ color: 0x004b62, metalness: 0.62, roughness: 0.28 });
@@ -167,13 +252,95 @@ function buildScene() {
   const jointMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.74, roughness: 0.22 });
   const effectorMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.3, roughness: 0.2, emissive: 0x4a91bb, emissiveIntensity: 0.42 });
 
-  const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.068, 0.07, 40), baseMaterial);
+  const deckMaterial = new THREE.MeshStandardMaterial({ color: 0x092d44, metalness: 0.42, roughness: 0.49 });
+  const trimMaterial = new THREE.MeshStandardMaterial({ color: 0x72bad6, metalness: 0.61, roughness: 0.24, emissive: 0x11455e, emissiveIntensity: 0.19 });
+  const floorHalo = new THREE.Mesh(
+    new THREE.RingGeometry(0.18, 0.61, 72),
+    new THREE.MeshBasicMaterial({ color: 0x4a91bb, transparent: true, opacity: 0.055, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  floorHalo.position.z = -0.113;
+  scene.add(floorHalo);
+  const floorOutline = new THREE.Mesh(
+    new THREE.TorusGeometry(0.61, 0.0013, 4, 96),
+    new THREE.MeshBasicMaterial({ color: 0xa5d0f0, transparent: true, opacity: 0.28 }),
+  );
+  floorOutline.position.z = -0.111;
+  scene.add(floorOutline);
+
+  const foundation = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.155, 0.022, 48), deckMaterial);
+  foundation.rotation.x = Math.PI / 2;
+  foundation.position.z = -0.099;
+  foundation.castShadow = true;
+  scene.add(foundation);
+  const foundationRim = new THREE.Mesh(new THREE.TorusGeometry(0.145, 0.0022, 6, 64), trimMaterial);
+  foundationRim.position.z = -0.087;
+  scene.add(foundationRim);
+  for (let i = 0; i < 8; i++) {
+    const angle = i * Math.PI / 4;
+    const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 0.003, 10), ringMaterial);
+    bolt.rotation.x = Math.PI / 2;
+    bolt.position.set(0.123 * Math.cos(angle), 0.123 * Math.sin(angle), -0.086);
+    scene.add(bolt);
+  }
+
+  const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.096, 0.13, 0.042, 48), baseMaterial);
+  housing.rotation.x = Math.PI / 2;
+  housing.position.z = -0.066;
+  housing.castShadow = true;
+  scene.add(housing);
+  const bearing = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.022, 48), deckMaterial);
+  bearing.rotation.x = Math.PI / 2;
+  bearing.position.z = -0.037;
+  scene.add(bearing);
+  for (const z of [-0.048, -0.025]) {
+    const bearingRim = new THREE.Mesh(new THREE.TorusGeometry(0.091, 0.003, 8, 64), ringMaterial);
+    bearingRim.position.z = z;
+    scene.add(bearingRim);
+  }
+  for (let i = 0; i < 24; i++) {
+    const angle = i * Math.PI / 12;
+    const tick = new THREE.Mesh(
+      new THREE.BoxGeometry(i % 3 === 0 ? 0.012 : 0.006, 0.0016, 0.0015),
+      i % 3 === 0 ? trimMaterial : ringMaterial,
+    );
+    tick.position.set(0.076 * Math.cos(angle), 0.076 * Math.sin(angle), -0.024);
+    tick.rotation.z = angle;
+    scene.add(tick);
+  }
+
+  const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.061, 0.028, 40), baseMaterial);
   pedestal.rotation.x = Math.PI / 2;
-  pedestal.position.z = -0.034;
+  pedestal.position.z = -0.011;
   scene.add(pedestal);
-  const pedestalRim = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.004, 8, 48), ringMaterial);
-  pedestalRim.position.z = 0.002;
+  const pedestalRim = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.003, 8, 48), trimMaterial);
+  pedestalRim.position.z = 0.003;
   scene.add(pedestalRim);
+
+  const yawIndicator = new THREE.Group();
+  const yawBar = new THREE.Mesh(new THREE.BoxGeometry(0.027, 0.006, 0.002), trimMaterial);
+  yawBar.position.set(0.069, 0, -0.023);
+  yawIndicator.add(yawBar);
+  const yawTip = new THREE.Mesh(new THREE.ConeGeometry(0.005, 0.011, 8), trimMaterial);
+  yawTip.rotation.z = -Math.PI / 2;
+  yawTip.position.set(0.091, 0, -0.023);
+  yawIndicator.add(yawTip);
+  scene.add(yawIndicator);
+
+  // En inversa, esta flecha hace visible q₁ incluso cuando dos ternas
+  // colocan hombro, codo y punta en los mismos puntos XYZ.
+  const ikYawArrow = new THREE.Group();
+  const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xffd36b, depthTest: false });
+  const arrowStem = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.007, 0.003), arrowMaterial);
+  arrowStem.position.set(0.104, 0, 0.015);
+  arrowStem.renderOrder = 9;
+  ikYawArrow.add(arrowStem);
+  const arrowTip = new THREE.Mesh(new THREE.ConeGeometry(0.009, 0.018, 10), arrowMaterial);
+  arrowTip.rotation.z = -Math.PI / 2;
+  arrowTip.position.set(0.145, 0, 0.015);
+  arrowTip.renderOrder = 9;
+  ikYawArrow.add(arrowTip);
+  ikYawArrow.visible = false;
+  scene.add(ikYawArrow);
 
   robot = {
     segments: [
@@ -183,17 +350,19 @@ function buildScene() {
     ],
     joints: [
       makeSphere(0.027, ringMaterial),
-      makeSphere(0.03, jointMaterial),
-      makeSphere(0.024, jointMaterial),
+      makeSphere(0.03, jointMaterial, true),
+      makeSphere(0.024, jointMaterial, true),
       makeSphere(0.019, effectorMaterial),
     ],
+    yawIndicator,
+    ikYawArrow,
   };
 
   const shoulderRing = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.004, 8, 42), oceanMaterial);
   shoulderRing.position.z = 0.04;
   scene.add(shoulderRing);
 
-  const axisOrigin = new THREE.Vector3(-0.12, -0.16, -0.52);
+  const axisOrigin = new THREE.Vector3(-0.28, -0.24, -0.105);
   scene.add(new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), axisOrigin, 0.17, 0x4a91bb, 0.035, 0.018));
   scene.add(new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), axisOrigin, 0.17, 0xa5d0f0, 0.035, 0.018));
   scene.add(new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), axisOrigin, 0.17, 0xffffff, 0.035, 0.018));
@@ -224,6 +393,21 @@ function buildScene() {
   saturationRing.visible = false;
   scene.add(saturationRing);
 
+  inverseReachOuter = makeReachRings(0.53, 0.4);
+  inverseReachInner = makeReachRings(0.05, 0.7);
+  const ghostMaterial = new THREE.MeshBasicMaterial({ color: 0xffbc7c, transparent: true, opacity: 0.62, depthWrite: false });
+  inverseGhost = {
+    segments: [0, 1].map(() => {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 1, 14), ghostMaterial);
+      scene.add(mesh);
+      return mesh;
+    }),
+    elbow: new THREE.Mesh(new THREE.SphereGeometry(0.012, 16, 10), ghostMaterial),
+  };
+  scene.add(inverseGhost.elbow);
+  inverseGhost.segments.forEach((mesh) => { mesh.visible = false; });
+  inverseGhost.elbow.visible = false;
+
   setCameraPreset('iso');
   resize();
   new ResizeObserver(resize).observe(ui.viewport);
@@ -231,7 +415,7 @@ function buildScene() {
 
 function setCameraPreset(preset) {
   activeView = preset;
-  const target = baseTarget;
+  const target = mode === 'inverse' ? new THREE.Vector3(0.12, 0, 0.22) : baseTarget;
   controls.target.copy(target);
   if (preset === 'top') camera.position.set(target.x + 0.15, target.y - 0.12, target.z + 1.42);
   else if (preset === 'front') camera.position.set(target.x + 0.06, target.y - 1.38, target.z + 0.25);
@@ -286,6 +470,13 @@ function buildCasePaths() {
 }
 
 function updateLayerVisibility() {
+  if (mode === 'inverse') {
+    if (desiredLine) desiredLine.visible = false;
+    if (trailLine) trailLine.visible = false;
+    if (desiredMarker) desiredMarker.visible = true;
+    if (errorConnector) errorConnector.visible = Boolean(activeInverseCase && !activeInverseCase.solutions.length);
+    return;
+  }
   if (desiredLine) desiredLine.visible = ui.showDesired.checked;
   if (desiredMarker) desiredMarker.visible = ui.showDesired.checked;
   if (errorConnector) errorConnector.visible = ui.showDesired.checked;
@@ -331,12 +522,21 @@ function displayCoord(value) {
   return value.map((part) => (part < 0 ? '' : '+') + part.toFixed(3)).join(' / ');
 }
 
-function renderPose() {
-  if (!activeCase) return;
-  const { sample, index } = sampleAt(elapsed);
-  const joints = sample.joints.map(point);
+function applyRobotPose(jointCoordinates, q1) {
+  const joints = jointCoordinates.map(point);
   for (let i = 0; i < 3; i++) setSegment(robot.segments[i], joints[i], joints[i + 1]);
   for (let i = 0; i < 4; i++) robot.joints[i].position.copy(joints[i]);
+  robot.yawIndicator.rotation.z = q1;
+  robot.ikYawArrow.rotation.z = q1;
+  robot.joints[1].rotation.z = q1;
+  robot.joints[2].rotation.z = q1;
+  return joints;
+}
+
+function renderPose() {
+  if (mode !== 'trajectory' || !activeCase) return;
+  const { sample, index } = sampleAt(elapsed);
+  const joints = applyRobotPose(sample.joints, sample.q[0]);
   desiredMarker.position.copy(point(sample.desired));
   saturationRing.position.copy(joints[3]);
   saturationRing.visible = Boolean(sample.saturated);
@@ -367,6 +567,285 @@ function renderPose() {
   ui.trackingState.innerHTML = sample.saturated
     ? '<span class="tracking-dot"></span> Límite de velocidad alcanzado'
     : '<span class="tracking-dot"></span> Seguimiento activo';
+}
+
+const ikDescriptions = {
+  regular: 'Punto alcanzable con el codo flexionado.',
+  codo_extend: 'El brazo llega a su borde más lejano.',
+  codo_plegado: 'El brazo llega a su borde más cercano.',
+  eje_base: 'El punto está sobre el eje de la base.',
+  interseccion: 'El punto está sobre el eje y en el borde lejano.',
+  inalcanzable_exterior: 'El punto queda más lejos que el brazo.',
+  inalcanzable_interior: 'El punto queda demasiado cerca del hombro.',
+};
+
+const displayNumber = (value, decimals = 3) => Number(value).toFixed(decimals).replace('.', ',');
+const displayDegrees = (value) => displayNumber(Math.abs(value) < 0.005 ? 0 : value, 2) + '°';
+
+function ikExplanation(current) {
+  if (!current.solutions.length) {
+    return {
+      short: 'Fuera del alcance → 0 soluciones',
+      parts: ['Fuera de alcance', '→', '0 soluciones'],
+      status: 'Ninguna terna coloca la punta en ese punto.',
+      long: 'La ley de cosenos produce |D| > 1. Entonces 1 − D² es negativo y no existe un ángulo real q₃ que lleve la punta a este objetivo.',
+    };
+  }
+  if (current.base_free && current.solutions.length === 1) {
+    return {
+      short: 'Base libre · 1 codo → 1 terna mostrada',
+      parts: ['Base libre', '+', '1 codo', '→', '1 mostrada'],
+      status: 'q₁ puede tomar cualquier ángulo; se muestra 1 codo.',
+      long: 'ρ = 0 deja libre el giro de la base. En el borde, |D| = 1 y las dos ramas de q₃ se unen. El CSV guarda q₁ = 0° como representante, aunque la base puede girar.',
+    };
+  }
+  if (current.base_free) {
+    return {
+      short: 'Base libre · 2 codos → 2 ternas mostradas',
+      parts: ['Base libre', '+', '2 codos', '→', '2 mostradas'],
+      status: 'q₁ puede tomar cualquier ángulo; se muestran 2 codos.',
+      long: 'ρ = 0 deja libre el giro de la base. Como |D| < 1, el signo ± de √(1 − D²) da dos ángulos de codo. El CSV muestra ambas ramas con q₁ = 0°; el deslizador enseña otros giros válidos.',
+    };
+  }
+  if (current.solutions.length === 2) {
+    return {
+      short: '2 giros de base × 1 codo = 2 ternas',
+      parts: ['2 bases', '×', '1 codo', '=', '2 ternas'],
+      status: 'Las dos ternas dibujan la misma forma.',
+      long: 'ρ > 0 permite r = +ρ o −ρ. En el borde, |D| = 1 y √(1 − D²) = 0: los codos positivo y negativo coinciden. Las dos ternas dibujan una sola silueta.',
+    };
+  }
+  return {
+    short: '2 giros de base × 2 codos = 4 ternas',
+    parts: ['2 bases', '×', '2 codos', '=', '4 ternas'],
+    status: 'Forma A: ternas 1 y 4. Forma B: ternas 2 y 3.',
+    long: 'ρ > 0 permite r = +ρ con q₁ = φ o r = −ρ con q₁ = φ + 180°. Como |D| < 1, √(1 − D²) tiene signos ± y produce dos q₃. Para cada combinación se calcula q₂. Las 4 ternas se superponen por parejas: 2 siluetas.',
+  };
+}
+
+function showIkCount(parts, description) {
+  ui.ikBranchEquation.replaceChildren();
+  ui.ikBranchEquation.setAttribute('aria-label', description);
+  for (const [index, part] of parts.entries()) {
+    const node = document.createElement(index === parts.length - 1 ? 'strong' : 'span');
+    node.textContent = part;
+    if (part === '×' || part === '=' || part === '→' || part === '+') node.className = 'ik-operator';
+    ui.ikBranchEquation.append(node);
+  }
+}
+
+function populateInverseCases() {
+  ui.ikCase.replaceChildren();
+  for (const current of dataset.inverse_cases) {
+    const option = document.createElement('option');
+    option.value = current.id;
+    option.textContent = current.label;
+    ui.ikCase.append(option);
+  }
+  ui.ikCase.value = 'regular';
+}
+
+function populateInverseSolutions() {
+  ui.ikSolutions.replaceChildren();
+  const solutions = activeInverseCase.solutions;
+  if (!solutions.length) {
+    const empty = document.createElement('div');
+    empty.className = 'ik-empty';
+    empty.textContent = 'Ninguna terna llega a este punto.';
+    ui.ikSolutions.append(empty);
+    return;
+  }
+  for (const [index, solution] of solutions.entries()) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'ik-branch';
+    button.dataset.index = String(index);
+    const heading = document.createElement('strong');
+    heading.textContent = `Terna ${index + 1} · forma ${solution.posture}`;
+    const angles = document.createElement('span');
+    angles.textContent = `q₁ ${displayDegrees(solution.q_deg[0])}  ·  q₂ ${displayDegrees(solution.q_deg[1])}  ·  q₃ ${displayDegrees(solution.q_deg[2])}`;
+    button.append(heading, angles);
+    ui.ikSolutions.append(button);
+  }
+}
+
+function rotateJointsAboutBase(joints, angle) {
+  const cosine = Math.cos(angle);
+  const sine = Math.sin(angle);
+  return joints.map(([x, y, z]) => [x * cosine - y * sine, x * sine + y * cosine, z]);
+}
+
+function showInverseGhost(selected, yawOffset) {
+  const alternative = activeInverseCase.solutions.find((solution) => solution.posture !== selected?.posture);
+  const visible = Boolean(alternative);
+  inverseGhost.segments.forEach((mesh) => { mesh.visible = visible; });
+  inverseGhost.elbow.visible = visible;
+  if (!alternative) return;
+  const coordinates = activeInverseCase.base_free
+    ? rotateJointsAboutBase(alternative.joints, yawOffset)
+    : alternative.joints;
+  const joints = coordinates.map(point);
+  setSegment(inverseGhost.segments[0], joints[1], joints[2]);
+  setSegment(inverseGhost.segments[1], joints[2], joints[3]);
+  inverseGhost.elbow.position.copy(joints[2]);
+}
+
+function renderInverseScene() {
+  if (mode !== 'inverse' || !activeInverseCase) return;
+  const current = activeInverseCase;
+  const selected = current.solutions[inverseSolutionIndex] || null;
+  const pairIndex = selected
+    ? current.solutions.findIndex((solution, index) => index !== inverseSolutionIndex && solution.posture === selected.posture)
+    : -1;
+  const pose = selected || current.limit_pose;
+  const yawDegrees = current.base_free ? Number(ui.ikYaw.value) : 0;
+  const yawOffset = current.base_free ? yawDegrees * Math.PI / 180 - selected.q[0] : 0;
+  const jointCoordinates = current.base_free ? rotateJointsAboutBase(pose.joints, yawOffset) : pose.joints;
+  const q1 = current.base_free ? yawDegrees * Math.PI / 180 : pose.q[0];
+  applyRobotPose(jointCoordinates, q1);
+  desiredMarker.position.copy(point(current.target));
+  desiredMarker.material.color.setHex(selected ? 0xa5d0f0 : 0xffbc7c);
+  desiredMarker.material.depthTest = Boolean(selected);
+  desiredMarker.renderOrder = selected ? 0 : 8;
+  desiredMarker.children[0].material.depthTest = Boolean(selected);
+  saturationRing.visible = false;
+  inverseReachOuter.visible = true;
+  inverseReachInner.visible = current.id === 'inalcanzable_interior';
+  showInverseGhost(selected, yawOffset);
+  const connectorPositions = errorConnector.geometry.attributes.position;
+  connectorPositions.setXYZ(0, ...jointCoordinates[3]);
+  connectorPositions.setXYZ(1, ...current.target);
+  connectorPositions.needsUpdate = true;
+  errorConnector.geometry.computeBoundingSphere();
+  errorConnector.material.color.setHex(selected ? 0xffffff : 0xffbc7c);
+  ui.ikHudTitle.textContent = selected
+    ? `Terna ${inverseSolutionIndex + 1} de ${current.solutions.length} · forma ${selected.posture}`
+    : 'Fuera del alcance · 0 soluciones';
+  ui.ikHudAngles.textContent = selected
+    ? current.base_free
+      ? 'La base gira sin mover la punta.'
+      : pairIndex >= 0
+        ? `La terna ${pairIndex + 1} deja el brazo en esta misma forma.`
+        : 'La punta coincide con el objetivo.'
+    : `Faltan ${displayNumber(current.limit_pose.distance_to_target_m * 1000, 1)} mm`;
+  ui.ikHudDetail.textContent = selected
+    ? current.base_free
+      ? 'q₁ puede tomar cualquier ángulo.'
+      : pairIndex >= 0
+        ? 'Compara la flecha de base entre ambas ternas.'
+        : 'La cinemática directa devuelve el mismo XYZ.'
+    : 'La postura dibujada es el límite, no una solución.';
+  ui.sceneLegend.textContent = selected
+    ? 'Flecha: giro de base · ámbar: otra forma · esfera: objetivo'
+    : 'Esfera ámbar: objetivo · línea: distancia que falta';
+  updateLayerVisibility();
+  renderInverseTelemetry(selected, pose, yawDegrees);
+}
+
+function renderInverseTelemetry(selected, pose, yawDegrees) {
+  const current = activeInverseCase;
+  const count = current.solutions.length;
+  const explanation = ikExplanation(current);
+  showIkCount(explanation.parts, explanation.short);
+  ui.ikMathExplanation.textContent = explanation.long;
+  ui.ikStatus.textContent = explanation.status;
+  ui.ikTargetXYZ.textContent = current.target.map((part) => displayNumber(part, 3)).join(' / ');
+  ui.ikRho.textContent = displayNumber(current.rho, 6) + ' m';
+  ui.ikHeight.textContent = displayNumber(current.h, 6) + ' m';
+  ui.ikDistance.textContent = displayNumber(current.d, 3) + ' m';
+  ui.ikRangeMarker.style.left = `${Math.min(100, Math.max(0, current.d / 0.6 * 100))}%`;
+  ui.ikRangeMarker.classList.toggle('outside', !count);
+  ui.ikReachStatus.textContent = count
+    ? 'Dentro del alcance ideal (0,050–0,530 m).'
+    : 'Fuera del alcance ideal (0,050–0,530 m).';
+  ui.ikD.textContent = displayNumber(current.D, 6);
+  ui.ikSelectedLabel.textContent = selected ? 'COMPRUEBA LOS ÁNGULOS' : 'LÍMITE DEL BRAZO';
+  ui.ikSelectedPosture.textContent = selected
+    ? `Terna ${inverseSolutionIndex + 1} · forma ${selected.posture}`
+    : 'Postura ilustrativa, no solución';
+  ui.ikSelectedAngles.hidden = !selected;
+  const qDegrees = selected ? selected.q_deg.slice() : pose.q.map((angle) => angle * 180 / Math.PI);
+  if (current.base_free) qDegrees[0] = yawDegrees;
+  ui.ikQ1.textContent = displayNumber(qDegrees[0], 2);
+  ui.ikQ2.textContent = displayNumber(qDegrees[1], 2);
+  ui.ikQ3.textContent = displayNumber(qDegrees[2], 2);
+  ui.ikResidualLabel.textContent = selected ? 'Diferencia al volver a XYZ' : 'Distancia que falta';
+  ui.ikResidual.textContent = selected
+    ? (selected.residual_m < 1e-9 ? '≈ 0 mm' : displayNumber(selected.residual_m * 1000, 6) + ' mm')
+    : displayNumber(pose.distance_to_target_m * 1000, 1) + ' mm';
+  if (!selected) {
+    ui.ikSelectedNote.textContent = 'La postura dibujada marca hasta dónde llega el brazo.';
+  } else if (current.base_free) {
+    ui.ikSelectedNote.textContent = 'Al girar q₁, la punta sigue en el mismo punto.';
+  } else {
+    const pairIndex = current.solutions.findIndex((solution, index) => index !== inverseSolutionIndex && solution.posture === selected.posture);
+    ui.ikSelectedNote.textContent = pairIndex >= 0
+      ? `La terna ${pairIndex + 1} conserva esta forma; cambian los ángulos y la flecha de base.`
+      : 'Con estos ángulos, la punta vuelve al punto XYZ del modelo.';
+  }
+  for (const [index, button] of [...ui.ikSolutions.querySelectorAll('button')].entries()) {
+    const active = index === inverseSolutionIndex;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  }
+  ui.ikYawValue.textContent = displayDegrees(yawDegrees);
+}
+
+function selectInverseCase() {
+  if (!dataset?.inverse_cases) return;
+  const found = dataset.inverse_cases.find((item) => item.id === ui.ikCase.value);
+  if (!found) throw new Error('No se encontró el caso de cinemática inversa seleccionado.');
+  activeInverseCase = found;
+  inverseSolutionIndex = 0;
+  ui.ikYaw.value = '0';
+  ui.ikYawWrap.hidden = !found.base_free;
+  ui.ikCaseDescription.textContent = ikDescriptions[found.id] || '';
+  ui.sceneTitle.textContent = found.label;
+  populateInverseSolutions();
+  renderInverseScene();
+}
+
+function setMode(next) {
+  if (!dataset || next === mode) return;
+  if (next === 'inverse') trajectoryWasPlaying = playing;
+  mode = next;
+  const inverse = next === 'inverse';
+  ui.modeTrajectory.classList.toggle('active', !inverse);
+  ui.modeInverse.classList.toggle('active', inverse);
+  ui.modeTrajectory.setAttribute('aria-pressed', String(!inverse));
+  ui.modeInverse.setAttribute('aria-pressed', String(inverse));
+  ui.trajectoryControls.hidden = inverse;
+  ui.inverseControls.hidden = !inverse;
+  ui.trajectoryTelemetry.hidden = inverse;
+  ui.inverseTelemetry.hidden = !inverse;
+  ui.playback.hidden = inverse;
+  ui.ikSceneHud.hidden = !inverse;
+  ui.frameBadge.hidden = inverse;
+  robot.ikYawArrow.visible = inverse;
+  ui.controlsTitle.textContent = inverse ? 'Cinemática inversa' : 'Simulación 3D';
+  ui.controlsSubtitle.textContent = inverse
+    ? '¿Qué tres ángulos llevan la punta al punto XYZ?'
+    : 'Seguimiento de la punta y error de los controladores.';
+  if (inverse) {
+    setPlaying(false);
+    selectInverseCase();
+  } else {
+    inverseReachOuter.visible = false;
+    inverseReachInner.visible = false;
+    inverseGhost.segments.forEach((mesh) => { mesh.visible = false; });
+    inverseGhost.elbow.visible = false;
+    desiredMarker.material.color.setHex(0xa5d0f0);
+    desiredMarker.material.depthTest = true;
+    desiredMarker.children[0].material.depthTest = true;
+    desiredMarker.renderOrder = 0;
+    errorConnector.material.color.setHex(0xffffff);
+    ui.sceneLegend.innerHTML = '<span class="legend-line legend-desired"></span> Deseada <span class="legend-line legend-actual"></span> Real';
+    ui.sceneTitle.textContent = scenarioNames[activeCase.scenario] || activeCase.label;
+    renderPose();
+    updateLayerVisibility();
+    setPlaying(trajectoryWasPlaying);
+  }
+  setCameraPreset(activeView);
 }
 
 function setPlaying(next) {
@@ -412,7 +891,7 @@ function tick(timestamp) {
   if (lastTick == null) lastTick = timestamp;
   const delta = Math.min((timestamp - lastTick) / 1000, 0.15);
   lastTick = timestamp;
-  if (activeCase && playing) {
+  if (mode === 'trajectory' && activeCase && playing) {
     const duration = activeCase.samples[activeCase.samples.length - 1].t;
     elapsed += delta * speed;
     if (elapsed >= duration) {
@@ -430,6 +909,16 @@ function tick(timestamp) {
 }
 
 function wireControls() {
+  ui.modeTrajectory.addEventListener('click', () => setMode('trajectory'));
+  ui.modeInverse.addEventListener('click', () => setMode('inverse'));
+  ui.ikCase.addEventListener('change', selectInverseCase);
+  ui.ikSolutions.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-index]');
+    if (!button || mode !== 'inverse') return;
+    inverseSolutionIndex = Number(button.dataset.index);
+    renderInverseScene();
+  });
+  ui.ikYaw.addEventListener('input', renderInverseScene);
   ui.scenario.addEventListener('change', selectCase);
   ui.methodPinv.addEventListener('click', () => setMethod('pinv'));
   ui.methodDls.addEventListener('click', () => setMethod('dls'));
@@ -454,6 +943,7 @@ function wireControls() {
   ui.speed.addEventListener('change', () => { speed = Number(ui.speed.value) || 1; });
   window.addEventListener('keydown', (event) => {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLButtonElement) return;
+    if (mode !== 'trajectory') return;
     if (event.code === 'Space' && activeCase) {
       event.preventDefault();
       setPlaying(!playing);
@@ -476,6 +966,19 @@ async function start() {
     if (!response.ok) throw new Error('No se encontró data.json (HTTP ' + response.status + ').');
     dataset = await response.json();
     if (!Array.isArray(dataset.cases) || !dataset.cases.length) throw new Error('El archivo data.json no contiene trayectorias.');
+    if (!Array.isArray(dataset.inverse_cases)) {
+      // Compatibilidad con el visor ya abierto detrás del túnel público: el servidor
+      // anterior conserva data.json en memoria, pero sirve este archivo desde disco.
+      const snapshotResponse = await fetch('./inverse_snapshot.json', { cache: 'no-store' });
+      if (!snapshotResponse.ok) throw new Error('Faltan los casos de inversa para esta ejecución.');
+      const snapshot = await snapshotResponse.json();
+      if (snapshot.source_folder !== dataset.source_folder) {
+        throw new Error('Los casos de inversa no corresponden a la corrida abierta. Reinicia launch_viewer.py.');
+      }
+      dataset.inverse_cases = snapshot.inverse_cases;
+    }
+    if (!Array.isArray(dataset.inverse_cases) || !dataset.inverse_cases.length) throw new Error('No hay casos de cinemática inversa en esta ejecución.');
+    populateInverseCases();
     ui.sourceName.textContent = 'Trayectorias calculadas con el modelo nominal 3R.';
     selectCase();
     ui.loading.hidden = true;

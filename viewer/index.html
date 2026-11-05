@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#02244A">
   <title>Ramzy 3R · Grupo 3 · MIA-12</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./style.css?v=inversa-clara-1">
   <script type="importmap">
     {
       "imports": {
@@ -37,9 +37,19 @@
       <aside class="sidebar controls-sidebar" aria-label="Controles de simulación">
         <div class="side-title">
           <div class="eyebrow">01 / CONFIGURACIÓN</div>
-          <h1>Simulación 3D</h1>
-          <p>Mueve la cámara y reproduce el seguimiento del efector final.</p>
+          <h1 id="controlsTitle">Simulación 3D</h1>
+          <p id="controlsSubtitle">Seguimiento de la punta y error de los controladores.</p>
         </div>
+
+        <section class="panel-block mode-block">
+          <div class="field-label">MODO DE EXPLORACIÓN</div>
+          <div class="segmented" role="group" aria-label="Modo de exploración">
+            <button id="modeTrajectory" class="segment active" type="button" aria-pressed="true">Trayectorias</button>
+            <button id="modeInverse" class="segment" type="button" aria-pressed="false">Cinemática inversa</button>
+          </div>
+        </section>
+
+        <div id="trajectoryControls" class="control-mode-group">
 
         <section class="panel-block">
           <label class="field-label" for="scenarioSelect">ESCENARIO</label>
@@ -75,6 +85,25 @@
             <span class="switch" aria-hidden="true"></span>
           </label>
         </section>
+        </div>
+
+        <div id="inverseControls" class="control-mode-group" hidden>
+          <section class="panel-block">
+            <label class="field-label" for="ikCaseSelect">CASO DE CINEMÁTICA INVERSA</label>
+            <div class="select-wrap">
+              <select id="ikCaseSelect" aria-describedby="ikCaseDescription"></select>
+            </div>
+            <p class="field-help" id="ikCaseDescription"></p>
+          </section>
+          <section class="panel-block ik-branch-panel">
+            <div class="field-label">ELIGE UNA TERNA DE ÁNGULOS</div>
+            <div id="ikSolutions" class="ik-solutions" role="group" aria-label="Ternas de ángulos de cinemática inversa"></div>
+            <div id="ikYawWrap" class="ik-yaw-wrap" hidden>
+              <label for="ikYaw">Giro libre de base q₁ <strong id="ikYawValue">0°</strong></label>
+              <input id="ikYaw" type="range" min="-180" max="180" step="5" value="0">
+            </div>
+          </section>
+        </div>
 
         <section class="panel-block">
           <div class="field-label">CÁMARA</div>
@@ -83,7 +112,14 @@
             <button id="viewTop" class="camera-button" type="button">Superior</button>
             <button id="viewFront" class="camera-button" type="button">Frontal</button>
           </div>
-          <p class="field-help">Arrastra para girar · rueda para acercar · clic derecho para desplazar.</p>
+        </section>
+
+        <section class="exposition-entry" aria-label="Datos para la exposición">
+          <button id="openExposition" class="exposition-trigger" type="button" aria-haspopup="dialog" aria-controls="expositionDialog">
+            <span class="exposition-trigger-icon" aria-hidden="true">▦</span>
+            <span class="exposition-trigger-copy"><strong>Guía de exposición</strong><small>Modelo · singularidades · resultados</small></span>
+            <span class="exposition-trigger-arrow" aria-hidden="true">↗</span>
+          </button>
         </section>
 
         <div class="sidebar-note">
@@ -106,15 +142,18 @@
 
         <div id="viewport" class="viewport">
           <div class="viewport-grid" aria-hidden="true"></div>
-          <div class="viewport-corner top-left"><span class="live-dot"></span> VISTA 3D <span class="corner-divider">/</span> MODELO 3R</div>
+          <div id="ikSceneHud" class="ik-scene-hud" aria-live="polite" hidden>
+            <strong id="ikHudTitle">—</strong>
+            <span id="ikHudAngles">—</span>
+            <small id="ikHudDetail">—</small>
+          </div>
           <div class="viewport-corner top-right" id="frameBadge">FRAME —</div>
-          <div class="viewport-corner bottom-left"><span class="view-icon">↔</span> ORBITAR · ZOOM · DESPLAZAR</div>
-          <div class="viewport-corner bottom-right"><span class="legend-line legend-desired"></span> Deseada <span class="legend-line legend-actual"></span> Real</div>
+          <div id="sceneLegend" class="viewport-corner bottom-right"><span class="legend-line legend-desired"></span> Deseada <span class="legend-line legend-actual"></span> Real</div>
           <div id="loadingOverlay" class="loading-overlay" role="status"><div class="loading-spinner"></div><strong>Cargando escena 3D…</strong><span>Preparando las trayectorias del robot</span></div>
           <div id="errorOverlay" class="error-overlay" role="alert" hidden><strong>No se pudo abrir la simulación.</strong><p id="errorMessage"></p><span>Inicia el visor con <code>.\.venv\Scripts\python.exe launch_viewer.py</code>.</span></div>
         </div>
 
-        <div class="playback">
+        <div id="playback" class="playback">
           <div class="playback-row">
             <button id="resetButton" class="icon-button" type="button" aria-label="Volver al inicio" title="Volver al inicio">↺</button>
             <button id="playButton" class="play-button" type="button" aria-label="Reproducir">▶</button>
@@ -138,7 +177,7 @@
         </div>
       </section>
 
-      <aside class="sidebar telemetry-sidebar" aria-label="Datos de simulación">
+      <aside id="trajectoryTelemetry" class="sidebar telemetry-sidebar" aria-label="Datos de simulación">
         <div class="side-title telemetry-title">
           <div class="eyebrow">03 / TELEMETRÍA</div>
           <h2>Estado del robot</h2>
@@ -186,8 +225,113 @@
           <small>Modelo del artículo; trayectorias y control del visor: simulación propia.</small>
         </section>
       </aside>
+
+      <aside id="inverseTelemetry" class="sidebar telemetry-sidebar inverse-telemetry" aria-label="Datos de cinemática inversa" hidden>
+        <div class="side-title telemetry-title">
+          <div class="eyebrow">03 / CINEMÁTICA INVERSA</div>
+          <h2>De XYZ a ángulos</h2>
+          <p>Terna = q₁ base · q₂ hombro · q₃ codo.</p>
+        </div>
+        <div class="telemetry-card ik-step-card">
+          <div class="ik-step-head"><span class="ik-step-number">1</span><span class="metric-label">PUNTO DE LLEGADA · XYZ EN m</span></div>
+          <div id="ikTargetXYZ" class="coord-value">— / — / —</div>
+          <div class="split-metric"><span>Distancia desde el hombro</span><strong id="ikDistance">—</strong></div>
+          <div class="ik-range-track" aria-hidden="true"><span id="ikRangeMarker"></span></div>
+          <p id="ikReachStatus" class="ik-flow-caption">El brazo alcanza puntos entre 0,050 y 0,530 m.</p>
+        </div>
+        <div class="telemetry-card ik-step-card ik-options-card">
+          <div class="ik-step-head"><span class="ik-step-number">2</span><span class="metric-label">¿CUÁNTAS OPCIONES HAY?</span></div>
+          <div id="ikBranchEquation" class="ik-branch-equation">—</div>
+          <p id="ikStatus" class="ik-flow-caption">—</p>
+        </div>
+        <div class="telemetry-card ik-step-card ik-selected-card">
+          <div class="ik-step-head"><span class="ik-step-number">3</span><span class="metric-label" id="ikSelectedLabel">COMPROBACIÓN</span></div>
+          <p id="ikSelectedPosture" class="ik-selected-posture">—</p>
+          <div id="ikSelectedAngles">
+            <div class="joint-row"><span>q₁ · base</span><strong id="ikQ1">—</strong><small>°</small></div>
+            <div class="joint-row"><span>q₂ · hombro</span><strong id="ikQ2">—</strong><small>°</small></div>
+            <div class="joint-row"><span>q₃ · codo</span><strong id="ikQ3">—</strong><small>°</small></div>
+          </div>
+          <div class="split-metric"><span id="ikResidualLabel">Residuo FK → XYZ</span><strong id="ikResidual">—</strong></div>
+          <p id="ikSelectedNote" class="ik-flow-caption">—</p>
+        </div>
+        <details class="telemetry-card ik-detail-card">
+          <summary>Ver cálculo geométrico</summary>
+          <div class="split-metric"><span>Radio horizontal ρ</span><strong id="ikRho">—</strong></div>
+          <div class="split-metric"><span>Altura h = z − L₁</span><strong id="ikHeight">—</strong></div>
+          <div class="ik-equation">D = (d² − L₂² − L₃²) / (2 L₂ L₃)</div>
+          <div class="split-metric"><span>Valor de D</span><strong id="ikD">—</strong></div>
+          <p id="ikMathExplanation" class="ik-math-copy">—</p>
+        </details>
+      </aside>
     </main>
+
+    <dialog id="expositionDialog" class="exposition-drawer" aria-labelledby="expositionTitle">
+      <div class="exposition-drawer-shell">
+        <header class="exposition-drawer-header">
+          <div><div class="eyebrow">GRUPO 3 / PRESENTACIÓN</div><h2 id="expositionTitle">Guía de exposición</h2><p>Datos clave para explicar lo que ves en el robot.</p></div>
+          <button id="closeExposition" class="exposition-close" type="button" aria-label="Cerrar guía de exposición">×</button>
+        </header>
+        <div class="exposition-tabs" role="tablist" aria-label="Temas de la exposición">
+          <button id="tabModelo" type="button" role="tab" aria-controls="panelModelo" aria-selected="true" data-exposition-tab="modelo">Modelo</button>
+          <button id="tabInversa" type="button" role="tab" aria-controls="panelInversa" aria-selected="false" tabindex="-1" data-exposition-tab="inversa">Inversa</button>
+          <button id="tabSingularidad" type="button" role="tab" aria-controls="panelSingularidad" aria-selected="false" tabindex="-1" data-exposition-tab="singularidad">Singularidad</button>
+          <button id="tabControl" type="button" role="tab" aria-controls="panelControl" aria-selected="false" tabindex="-1" data-exposition-tab="control">Control</button>
+          <button id="tabEvidencia" type="button" role="tab" aria-controls="panelEvidencia" aria-selected="false" tabindex="-1" data-exposition-tab="evidencia">Evidencia</button>
+        </div>
+        <div class="exposition-drawer-content">
+          <section id="panelModelo" role="tabpanel" aria-labelledby="tabModelo" data-exposition-panel="modelo">
+            <div class="exposition-section-heading"><span class="exposition-tag own">SIMULACIÓN PROPIA</span><h3>Un brazo 3R que sigue una trayectoria XYZ</h3></div>
+            <p>Las tres articulaciones son rotacionales. El visor anima la posición calculada de cada unión y compara el efector con una referencia alcanzable.</p>
+            <div class="dimension-strip" aria-label="Longitudes del modelo"><div><span>BASE → HOMBRO</span><strong id="modelL1">—</strong></div><div><span>ESLABÓN 2</span><strong id="modelL2">—</strong></div><div><span>ESLABÓN 3</span><strong id="modelL3">—</strong></div></div>
+            <div class="exposition-callout"><strong>Cómo leer la escena</strong><p>En modo Trayectorias, la línea discontinua es la referencia y la continua, el recorrido real simulado. El valor de error a la derecha mide la separación entre ambas posiciones.</p></div>
+            <p class="exposition-caveat">La escena representa el modelo cinemático nominal. La base y los acabados son recursos visuales; no reproducen el prototipo físico ni la deformación de los eslabones.</p>
+          </section>
+          <section id="panelInversa" role="tabpanel" aria-labelledby="tabInversa" data-exposition-panel="inversa" hidden>
+            <div class="exposition-section-heading"><span class="exposition-tag own">CÁLCULO GEOMÉTRICO PROPIO</span><h3>¿Qué ángulos llevan la punta al punto?</h3></div>
+            <p>La inversa parte de un punto XYZ y busca tres giros: q₁ orienta la base, q₂ mueve el hombro y q₃ dobla el codo. En un caso regular hay dos orientaciones de base y dos giros de codo: 2 × 2 = 4 ternas.</p>
+            <p>Para calcularlas usamos ρ = √(x² + y²), h = z − L₁ y d = √(ρ² + h²). La base se orienta con atan2(y, x); el codo se obtiene con la ley de cosenos.</p>
+            <div class="equation-card">D = (d² − L₂² − L₃²) / (2 L₂ L₃) = cos(q₃)</div>
+            <p>Si |D| &lt; 1, la ley de cosenos da dos ángulos de codo: q₃ = atan2(±√(1 − D²), D). Para cada rama, q₂ es el ángulo hacia el objetivo menos la corrección geométrica del segundo eslabón.</p>
+            <div class="evidence-table ik-guide-counts" role="table" aria-label="Conteo de soluciones de cinemática inversa">
+              <div role="row"><span role="columnheader">CASO</span><span role="columnheader">CÁLCULO</span><span role="columnheader">TERNAS</span></div>
+              <div role="row"><span role="cell">Regular</span><span role="cell">2 radios × 2 codos</span><strong id="guideIkRegular" role="cell">—</strong></div>
+              <div role="row"><span role="cell">Codo alineado</span><span role="cell">2 radios × 1 codo</span><strong id="guideIkAligned" role="cell">—</strong></div>
+              <div role="row"><span role="cell">Sobre el eje</span><span role="cell">q₁ libre × 2 codos</span><strong id="guideIkAxis" role="cell">—</strong></div>
+              <div role="row"><span role="cell">Eje y borde</span><span role="cell">q₁ libre × 1 codo</span><strong id="guideIkAxisBorder" role="cell">—</strong></div>
+              <div role="row"><span role="cell">Fuera del alcance</span><span role="cell">|D| &gt; 1</span><strong id="guideIkOutside" role="cell">—</strong></div>
+            </div>
+            <p class="exposition-caveat">Las ternas 1 y 4 dibujan la misma forma; 2 y 3 dibujan la otra. En el eje, q₁ puede tomar infinitos valores: la tabla cuenta representantes con q₁ = 0°. Los ángulos provienen de <code>inversa.csv</code>; una postura límite fuera del alcance no es solución.</p>
+          </section>
+          <section id="panelSingularidad" role="tabpanel" aria-labelledby="tabSingularidad" data-exposition-panel="singularidad" hidden>
+            <div class="exposition-section-heading"><span class="exposition-tag own">ANÁLISIS PROPIO</span><h3>¿Cuándo pierde movilidad?</h3></div>
+            <p>El jacobiano convierte velocidades articulares en velocidad XYZ. Pierde rango si el codo está extendido o plegado, o si el efector cae sobre el eje de la base.</p>
+            <div class="equation-card">det J = −L₂ · L₃ · r · sen(q₃)</div>
+            <div class="exposition-metric-pair"><div><span>ZONA CERCANA</span><strong id="singularityVolume">—</strong><small>del volumen ideal estimado</small></div><div><span>UMBRAL σ MÍNIMA</span><strong id="singularityThreshold">—</strong><small>m/rad</small></div></div>
+            <p class="exposition-caveat">El porcentaje supone el espacio ideal sin límites articulares, obstáculos ni flexión. La fórmula analítica de σ coincide con la SVD hasta <strong id="singularityAccuracy">—</strong> m/rad en esta ejecución.</p>
+            <figure class="exposition-figure"><a href="./evidence/mapa_singularidades.png" target="_blank" rel="noopener noreferrer"><img src="./evidence/mapa_singularidades.png" alt="Mapa de cercanía a singularidades en coordenadas articulares y cartesianas" loading="lazy"></a><figcaption>Mapa de singularidades · clic para ampliar ↗</figcaption></figure>
+          </section>
+          <section id="panelControl" role="tabpanel" aria-labelledby="tabControl" data-exposition-panel="control" hidden>
+            <div class="exposition-section-heading"><span class="exposition-tag own">SIMULACIÓN PROPIA</span><h3 id="controlContext">Control del escenario seleccionado</h3></div>
+            <p id="controlReading">Comparación con la misma referencia y el mismo estado inicial.</p>
+            <div class="control-compare" role="group" aria-label="Comparación de controladores"><div class="control-compare-head"><span></span><strong>Pseudoinversa</strong><strong>DLS</strong></div><div><span>RMSE</span><strong id="pinvRmse">—</strong><strong id="dlsRmse">—</strong></div><div><span>Saturaciones</span><strong id="pinvSaturations">—</strong><strong id="dlsSaturations">—</strong></div></div>
+            <div class="exposition-callout"><strong id="selectedController">Controlador seleccionado: pseudoinversa</strong><p>En modo Trayectorias, la telemetría de la derecha corresponde al instante y método elegidos en el visor.</p></div>
+            <figure class="exposition-figure"><a id="controlChartLink" href="./evidence/control_regular.png" target="_blank" rel="noopener noreferrer"><img id="controlChart" src="./evidence/control_regular.png" alt="Gráfica de seguimiento del escenario seleccionado" loading="lazy"></a><figcaption>Seguimiento y error · clic para ampliar ↗</figcaption></figure>
+          </section>
+          <section id="panelEvidencia" role="tabpanel" aria-labelledby="tabEvidencia" data-exposition-panel="evidencia" hidden>
+            <div class="exposition-section-heading"><span class="exposition-tag published">MEDICIONES PUBLICADAS</span><h3>¿Qué se contrastó con el artículo?</h3></div>
+            <p>La Tabla 3 de Ramzy et al. presenta mediciones del prototipo. Aquí se comparó nuestro modelo nominal con las componentes disponibles de esa tabla.</p>
+            <div class="evidence-table" role="table" aria-label="Error absoluto medio del modelo nominal frente a la Tabla 3"><div role="row"><span role="columnheader">EJE</span><span role="columnheader">MAE</span><span role="columnheader">DATOS</span></div><div role="row"><strong role="cell">X</strong><strong id="table3X" role="cell">—</strong><span id="table3XN" role="cell">—</span></div><div role="row"><strong role="cell">Y</strong><strong id="table3Y" role="cell">—</strong><span id="table3YN" role="cell">—</span></div><div role="row"><strong role="cell">Z</strong><strong id="table3Z" role="cell">—</strong><span id="table3ZN" role="cell">—</span></div></div>
+            <p class="exposition-caveat">MAE calculado por este proyecto frente a mediciones publicadas, por eje y solo donde hay datos. No es una métrica declarada por los autores ni una nueva prueba física.</p>
+            <figure class="exposition-figure"><a href="./evidence/tabla3.png" target="_blank" rel="noopener noreferrer"><img src="./evidence/tabla3.png" alt="Comparación del modelo nominal con los datos publicados en la Tabla 3" loading="lazy"></a><figcaption>Comparación con Tabla 3 · clic para ampliar ↗</figcaption></figure>
+            <div class="exposition-source"><strong>Referencia</strong><span>Ramzy, Hammad y Maged (2024), <cite>Applied Sciences</cite> 14(12), 5285.</span><a href="https://doi.org/10.3390/app14125285" target="_blank" rel="noopener noreferrer">Ver artículo ↗</a></div>
+          </section>
+        </div>
+        <footer class="exposition-drawer-footer">Cifras tomadas de <code>resumen.json</code> de la ejecución abierta.</footer>
+      </div>
+    </dialog>
   </div>
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="./app.js?v=inversa-clara-1"></script>
+  <script type="module" src="./presentation.js?v=inversa-clara-1"></script>
 </body>
 </html>

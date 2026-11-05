@@ -552,3 +552,164 @@ button:focus-visible, select:focus-visible, input:focus-visible,
   .telemetry-sidebar { border-top-color: var(--line); }
   .reference-card { margin: 14px 16px 12px; }
 }
+
+/* Capa de exposición: se abre junto a los controles de cámara. */
+.exposition-entry { padding: 0 24px 18px; }
+.exposition-trigger {
+  width: 100%; display: flex; align-items: center; gap: 10px; padding: 12px 11px;
+  border: 1px solid rgba(74, 145, 187, .38); border-radius: 9px;
+  background: linear-gradient(125deg, #ffffff, #e8f4fa); color: #02244a;
+  text-align: left; box-shadow: 0 3px 12px rgba(2, 36, 74, .06);
+  transition: border-color .18s, transform .18s, box-shadow .18s;
+}
+.exposition-trigger:hover { border-color: #004b62; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(2, 36, 74, .11); }
+.exposition-trigger-icon { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: 6px; background: #004b62; color: #a5d0f0; font-size: 20px; }
+.exposition-trigger-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.exposition-trigger-copy strong { font-size: 11px; line-height: 1.25; }
+.exposition-trigger-copy small { color: #42657a; font-size: 9px; line-height: 1.3; }
+.exposition-trigger-arrow { margin-left: auto; align-self: flex-start; color: #4a91bb; font-size: 16px; }
+
+.exposition-drawer {
+  position: fixed; inset: 0 auto 0 0; width: min(430px, 94vw); height: 100dvh;
+  max-width: none; max-height: none; margin: 0; padding: 0;
+  border: 0; border-right: 1px solid rgba(2, 36, 74, .2);
+  background: #f5fafd; color: #02244a;
+  box-shadow: 20px 0 60px rgba(2, 18, 39, .25);
+  animation: exposition-slide .24s ease-out;
+}
+.exposition-drawer::backdrop { background: rgba(2, 24, 50, .24); }
+@keyframes exposition-slide { from { transform: translateX(-18px); opacity: .8; } to { transform: translateX(0); opacity: 1; } }
+.exposition-drawer-shell { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+.exposition-drawer-header { display: flex; justify-content: space-between; gap: 16px; padding: 27px 27px 21px; background: #02244a; color: #ffffff; }
+.exposition-drawer-header .eyebrow { color: #a5d0f0; font-size: 9px; }
+.exposition-drawer-header h2 { margin: 8px 0 5px; font-size: 24px; letter-spacing: -.5px; }
+.exposition-drawer-header p { margin: 0; max-width: 300px; color: #b8d7e7; font-size: 11px; line-height: 1.45; }
+.exposition-close { width: 30px; height: 30px; flex: none; padding: 0; border: 1px solid rgba(165, 208, 240, .46); border-radius: 6px; background: rgba(165, 208, 240, .08); color: #ffffff; font-size: 21px; line-height: 1; }
+.exposition-close:hover { background: rgba(165, 208, 240, .22); }
+.exposition-tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; padding: 8px 10px 0; background: #e7f3f9; border-bottom: 1px solid rgba(2, 36, 74, .13); }
+.exposition-tabs button { min-width: 0; padding: 10px 3px 11px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: #42657a; font-size: 10px; font-weight: 700; }
+.exposition-tabs button:hover { color: #004b62; }
+.exposition-tabs button[aria-selected="true"] { color: #02244a; border-bottom-color: #4a91bb; }
+.exposition-drawer-content { flex: 1; min-height: 0; overflow-y: auto; padding: 25px 27px 32px; scrollbar-color: #a5d0f0 transparent; }
+.exposition-drawer-content p { margin: 0 0 15px; color: #315b72; font-size: 12px; line-height: 1.58; }
+.exposition-section-heading { margin-bottom: 16px; }
+.exposition-section-heading h3 { margin: 10px 0 0; font-size: 19px; line-height: 1.24; letter-spacing: -.35px; }
+.exposition-tag { display: inline-block; padding: 5px 7px; border-radius: 3px; font-size: 9px; font-weight: 800; letter-spacing: 1.2px; }
+.exposition-tag.own { color: #004b62; background: #d8ecf5; }
+.exposition-tag.published { color: #684d2c; background: #f4ead8; }
+.dimension-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 21px 0; }
+.dimension-strip div { min-width: 0; padding: 12px 8px; border: 1px solid rgba(2, 36, 74, .13); border-radius: 7px; background: #ffffff; }
+.dimension-strip span, .exposition-metric-pair span { display: block; min-height: 23px; color: #55788c; font-size: 8px; font-weight: 800; letter-spacing: .8px; line-height: 1.3; }
+.dimension-strip strong { display: block; margin-top: 5px; color: #02244a; font-size: 16px; font-variant-numeric: tabular-nums; }
+.exposition-callout { margin: 18px 0; padding: 14px 15px; border-left: 3px solid #4a91bb; border-radius: 0 7px 7px 0; background: #e8f3fa; }
+.exposition-callout strong { display: block; margin-bottom: 5px; font-size: 11px; }
+.exposition-callout p { margin: 0; font-size: 11px; }
+.exposition-drawer-content .exposition-caveat { color: #5b7788; font-size: 11px; }
+.equation-card { margin: 19px 0; padding: 15px 12px; border-radius: 7px; background: #02244a; color: #e6f4fc; text-align: center; font-size: 15px; font-weight: 650; letter-spacing: .3px; white-space: nowrap; }
+.exposition-metric-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 18px 0; }
+.exposition-metric-pair div { padding: 13px; border: 1px solid rgba(2, 36, 74, .13); border-radius: 7px; background: #ffffff; }
+.exposition-metric-pair strong { display: block; margin: 6px 0 3px; font-size: 22px; font-variant-numeric: tabular-nums; }
+.exposition-metric-pair small { color: #5b7788; font-size: 10px; }
+.exposition-figure { margin: 21px 0 4px; padding: 8px; border: 1px solid rgba(2, 36, 74, .13); border-radius: 8px; background: #ffffff; }
+.exposition-figure a { display: block; }
+.exposition-figure img { display: block; width: 100%; max-height: 210px; object-fit: contain; }
+.exposition-figure figcaption { padding: 8px 3px 3px; color: #42657a; font-size: 10px; }
+.control-compare, .evidence-table { margin: 19px 0; overflow: hidden; border: 1px solid rgba(2, 36, 74, .15); border-radius: 8px; background: #ffffff; }
+.control-compare > div { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; align-items: center; padding: 11px 12px; border-top: 1px solid rgba(2, 36, 74, .1); font-size: 11px; }
+.control-compare > div:first-child { border-top: 0; background: #e7f3f9; }
+.control-compare span { color: #42657a; }
+.control-compare strong { text-align: right; font-variant-numeric: tabular-nums; }
+.control-compare-head strong { color: #004b62; font-size: 10px; }
+.evidence-table > div { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; gap: 8px; padding: 9px 14px; border-top: 1px solid rgba(2, 36, 74, .1); font-size: 11px; }
+.evidence-table > div:first-child { border-top: 0; background: #e7f3f9; color: #42657a; font-size: 9px; font-weight: 800; letter-spacing: .8px; }
+.evidence-table > div > :not(:first-child) { text-align: right; }
+.evidence-table strong { font-variant-numeric: tabular-nums; }
+.exposition-source { display: flex; flex-direction: column; gap: 6px; padding-top: 15px; border-top: 1px solid rgba(2, 36, 74, .15); color: #315b72; font-size: 11px; line-height: 1.5; }
+.exposition-source strong { color: #02244a; }
+.exposition-source a { width: fit-content; color: #004b62; font-weight: 750; text-underline-offset: 3px; }
+.exposition-drawer-footer { padding: 12px 27px; border-top: 1px solid rgba(2, 36, 74, .13); background: #e7f3f9; color: #55788c; font-size: 10px; }
+.exposition-drawer-footer code { font-size: 10px; }
+@media (max-width: 720px) {
+  .exposition-entry { padding: 0 18px 14px; }
+  .exposition-drawer { width: min(430px, 100vw); }
+  .exposition-drawer-header { padding: 20px 20px 17px; }
+  .exposition-drawer-content { padding: 21px 20px 26px; }
+  .exposition-drawer-footer { padding: 12px 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .exposition-drawer { animation: none; }
+  .exposition-trigger { transition: none; }
+}
+
+/* Explorador de soluciones de cinemática inversa. */
+.control-mode-group { display: contents; }
+.mode-block { padding-top: 15px; padding-bottom: 15px; }
+.mode-block .field-label { margin-bottom: 8px; }
+.mode-block .segment { line-height: 1.25; min-height: 38px; }
+.ik-branch-panel { padding-top: 18px; }
+.ik-solutions { display: grid; gap: 8px; }
+.ik-branch {
+  display: block; width: 100%; padding: 10px 11px; border: 1px solid rgba(2, 36, 74, .2);
+  border-radius: 7px; background: #ffffff; color: #02244a; text-align: left;
+}
+.ik-branch:hover { border-color: #4a91bb; background: #e7f3f9; }
+.ik-branch.active { border-color: #004b62; background: #004b62; color: #ffffff; }
+.ik-branch strong, .ik-branch span { display: block; }
+.ik-branch strong { font-size: 12px; }
+.ik-branch span { margin-top: 5px; font-size: 11px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.ik-empty { padding: 13px 11px; border-left: 3px solid #4a91bb; background: #e7f3f9; color: #24516b; font-size: 12px; line-height: 1.45; }
+.ik-yaw-wrap { margin-top: 17px; padding-top: 15px; border-top: 1px solid var(--line); }
+.ik-yaw-wrap label { display: flex; justify-content: space-between; gap: 8px; color: #004b62; font-size: 11px; font-weight: 700; }
+.ik-yaw-wrap input { width: 100%; margin: 12px 0 0; accent-color: #004b62; }
+.inverse-telemetry .telemetry-card { min-width: 0; }
+.ik-equation { padding: 10px; border-radius: 5px; background: #e7f3f9; color: #02244a; font-size: 11px; line-height: 1.4; text-align: center; }
+.ik-guide-counts > div { grid-template-columns: 1fr 1.35fr .5fr; gap: 5px; }
+#panelInversa .equation-card { white-space: normal; }
+#sceneLegend { max-width: calc(100% - 44px); text-align: right; justify-content: flex-end; }
+.ik-scene-hud {
+  position: absolute; z-index: 3; top: 20px; left: 22px; width: min(310px, calc(100% - 44px));
+  display: flex; flex-direction: column; gap: 5px; padding: 11px 13px;
+  border: 1px solid rgba(165, 208, 240, .38); border-radius: 7px;
+  background: rgba(2, 36, 74, .88); color: #ffffff; pointer-events: none;
+  box-shadow: 0 8px 24px rgba(2, 20, 44, .18);
+}
+.ik-scene-hud strong { font-size: 13px; line-height: 1.25; }
+.ik-scene-hud span { color: #e2f4fb; font-size: 12px; font-variant-numeric: tabular-nums; line-height: 1.35; }
+.ik-scene-hud small { color: #b4d8e8; font-size: 11px; line-height: 1.35; }
+.ik-math-copy { margin: 11px 0 0; color: #315b72; font-size: 11px; line-height: 1.5; }
+.ik-selected-posture { margin: 0 0 12px; color: #004b62; font-size: 12px; font-weight: 700; }
+.ik-selected-card .joint-row { grid-template-columns: 1fr auto 12px; }
+.ik-step-card { padding: 14px 15px; }
+.inverse-telemetry .telemetry-title { padding: 19px 16px 13px; }
+.inverse-telemetry .telemetry-title h2 { font-size: 20px; }
+.inverse-telemetry .telemetry-title p { font-size: 11px; }
+.ik-step-head { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+.ik-step-head .metric-label { margin: 0; line-height: 1.35; }
+.ik-step-number { display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 50%; background: #004b62; color: #ffffff; font-size: 12px; font-weight: 800; }
+.ik-step-card .coord-value { font-size: 14px; }
+.ik-step-card .split-metric { margin-top: 8px; padding: 6px 0; }
+.ik-flow-caption { margin: 8px 0 0; color: #315b72; font-size: 11px; line-height: 1.4; }
+.ik-range-track { position: relative; height: 8px; margin: 9px 5px 0; border-radius: 99px; background: linear-gradient(90deg, #dce8ee 0 8.33%, #78b6d3 8.33% 88.33%, #dce8ee 88.33% 100%); }
+.ik-range-track span { position: absolute; top: -4px; width: 16px; height: 16px; transform: translateX(-50%); border: 3px solid #ffffff; border-radius: 50%; background: #004b62; box-shadow: 0 1px 5px rgba(2, 36, 74, .3); }
+.ik-range-track span.outside { background: #bd643a; }
+.ik-options-card { border-color: rgba(74, 145, 187, .48); background: #e8f4fa; }
+.ik-branch-equation { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; color: #02244a; }
+.ik-branch-equation span:not(.ik-operator), .ik-branch-equation strong { padding: 6px; border: 1px solid rgba(2, 36, 74, .13); border-radius: 6px; background: #ffffff; font-size: 11px; font-weight: 800; line-height: 1.25; }
+.ik-branch-equation strong { background: #004b62; color: #ffffff; white-space: nowrap; }
+.ik-branch-equation .ik-operator { padding: 0 1px; color: #42657a; font-size: 15px; font-weight: 800; }
+.ik-detail-card { padding: 0; }
+.ik-detail-card summary { cursor: pointer; padding: 13px 15px; color: #004b62; font-size: 11px; font-weight: 800; }
+.ik-detail-card summary::marker { color: #4a91bb; }
+.ik-detail-card[open] { padding-bottom: 14px; }
+.ik-detail-card[open] summary { border-bottom: 1px solid var(--line); }
+.ik-detail-card > :not(summary) { margin-left: 15px; margin-right: 15px; }
+.ik-detail-card .ik-equation { margin-top: 8px; }
+@media (min-width: 1101px) {
+  .app-shell { height: 100dvh; min-height: 700px; }
+  .workspace { min-height: 0; }
+}
+@media (max-width: 1100px) and (min-width: 721px) {
+  .inverse-telemetry { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inverse-telemetry .telemetry-title,
+  .inverse-telemetry .source-note { grid-column: 1 / -1; }
+}

@@ -8,6 +8,10 @@
 
 Proyecto reproducible de la Universidad Nacional de Ingeniería (UNI).
 
+El [diagrama de arquitectura y trazabilidad](docs/arquitectura_ramzy_3r.png)
+resume cómo se conectan el artículo, los módulos Python, las pruebas, los
+resultados y el visor. Está disponible también en SVG y PDF dentro de `docs/`.
+
 Reimplementación independiente del modelo nominal de Ramzy, Hammad y Maged
 (2024), *Kinematic and Dynamic Modeling of 3DOF Variable Stiffness Links
 Manipulator with Experimental Validation*, Applied Sciences 14(12), 5285.
@@ -60,6 +64,28 @@ su licencia, y el visor no necesita conexión a una CDN.
 La escena anima el modelo cinemático nominal. Los límites de velocidad y el
 seguimiento corresponden a la simulación de control; no son una grabación ni
 una reproducción física del prototipo publicado.
+
+El modo **Cinemática inversa** muestra cinco casos alcanzables calculados en
+`inversa.csv` y dos objetivos inalcanzables definidos en el experimento;
+`resumen.json` conserva los conteos de los siete casos. Incluye el caso regular,
+codo extendido o plegado, sobre el eje, eje y borde, un objetivo demasiado
+lejano y otro demasiado cercano. La pantalla sigue tres pasos: punto XYZ,
+combinaciones de base y codo, y comprobación por cinemática directa. El detalle
+de ρ, h y D queda en **Ver cálculo geométrico**. Selecciona una terna para mover
+el robot a sus ángulos `q₁, q₂, q₃`. En un punto regular hay cuatro ternas,
+pero solo dos formas visibles del brazo; la flecha sobre la base señala el
+cambio de `q₁`. En el eje, `q₁` es libre: el CSV guarda `0°` como representante
+y el deslizador permite ver otros giros. Los objetivos
+inalcanzables muestran **0 soluciones**; la postura límite dibujada ayuda a
+visualizar la distancia que falta y no es una solución del objetivo.
+
+Debajo de **Cámara**, el botón **Guía de exposición** abre un panel lateral con
+el modelo, la derivación de la inversa, la lectura de singularidades, la comparación de controladores del
+escenario seleccionado y la evidencia publicada. Sus cifras provienen del
+`resumen.json` de la corrida abierta. El panel distingue los experimentos
+propios de las mediciones del artículo. La plataforma, los rodamientos y los
+acabados del robot son detalles visuales; las posiciones articulares y del
+efector siguen los datos numéricos de la simulación.
 
 ## Experimentos y evidencias
 
