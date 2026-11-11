@@ -17,7 +17,13 @@ const ui = {
   inverseControls: byId('inverseControls'),
   ikCase: byId('ikCaseSelect'),
   ikCaseDescription: byId('ikCaseDescription'),
+  ikSolutionsTitle: byId('ikSolutionsTitle'),
   ikSolutions: byId('ikSolutions'),
+  ikTourControls: byId('ikTourControls'),
+  ikTourPlay: byId('ikTourPlay'),
+  ikTourStatus: byId('ikTourStatus'),
+  ikPrevious: byId('ikPrevious'),
+  ikNext: byId('ikNext'),
   ikYawWrap: byId('ikYawWrap'),
   ikYaw: byId('ikYaw'),
   ikYawValue: byId('ikYawValue'),
@@ -74,6 +80,9 @@ const ui = {
   ikQ1: byId('ikQ1'),
   ikQ2: byId('ikQ2'),
   ikQ3: byId('ikQ3'),
+  ikAngleChange: byId('ikAngleChange'),
+  ikAngleChangeLabel: byId('ikAngleChangeLabel'),
+  ikAngleChangeValues: byId('ikAngleChangeValues'),
   ikResidualLabel: byId('ikResidualLabel'),
   ikResidual: byId('ikResidual'),
   ikSelectedNote: byId('ikSelectedNote'),
@@ -102,6 +111,10 @@ let mode = 'trajectory';
 let activeInverseCase = null;
 let inverseSolutionIndex = 0;
 let trajectoryWasPlaying = false;
+let inverseLiveQ = null;
+let inverseTransition = null;
+let inverseTourPlaying = false;
+let inverseTourHold = 0;
 
 let scene;
 let camera;
@@ -474,7 +487,7 @@ function updateLayerVisibility() {
     if (desiredLine) desiredLine.visible = false;
     if (trailLine) trailLine.visible = false;
     if (desiredMarker) desiredMarker.visible = true;
-    if (errorConnector) errorConnector.visible = Boolean(activeInverseCase && !activeInverseCase.solutions.length);
+    if (errorConnector) errorConnector.visible = Boolean(activeInverseCase && (inverseTransition || !activeInverseCase.solutions.length));
     return;
   }
   if (desiredLine) desiredLine.visible = ui.showDesired.checked;
@@ -581,6 +594,20 @@ const ikDescriptions = {
 
 const displayNumber = (value, decimals = 3) => Number(value).toFixed(decimals).replace('.', ',');
 const displayDegrees = (value) => displayNumber(Math.abs(value) < 0.005 ? 0 : value, 2) + '°';
+const displaySignedDegrees = (value) => (value > 0.005 ? '+' : '') + displayDegrees(value);
+
+// La misma FK cerrada de ramzy3r/kinematics.py; permite mostrar ángulos
+// intermedios sin interpolar puntos XYZ ni fingir que son soluciones inversas.
+function jointsFromAngles([q1, q2, q3]) {
+  const [L1, L2, L3] = dataset.geometry_m;
+  const base = [0, 0, 0];
+  const shoulder = [0, 0, L1];
+  const elbowRadius = L2 * Math.cos(q2);
+  const elbow = [elbowRadius * Math.cos(q1), elbowRadius * Math.sin(q1), L1 + L2 * Math.sin(q2)];
+  const tipRadius = elbowRadius + L3 * Math.cos(q2 + q3);
+  const tip = [tipRadius * Math.cos(q1), tipRadius * Math.sin(q1), L1 + L2 * Math.sin(q2) + L3 * Math.sin(q2 + q3)];
+  return [base, shoulder, elbow, tip];
+}
 
 function ikExplanation(current) {
   if (!current.solutions.length) {
@@ -648,6 +675,9 @@ function populateInverseCases() {
 function populateInverseSolutions() {
   ui.ikSolutions.replaceChildren();
   const solutions = activeInverseCase.solutions;
+  ui.ikSolutionsTitle.textContent = solutions.length
+    ? `${solutions.length} ${solutions.length === 1 ? 'TERNA' : 'TERNAS'} · UN MISMO OBJETIVO`
+    : '0 SOLUCIONES · FUERA DEL ALCANCE';
   if (!solutions.length) {
     const empty = document.createElement('div');
     empty.className = 'ik-empty';
@@ -662,10 +692,88 @@ function populateInverseSolutions() {
     button.dataset.index = String(index);
     const heading = document.createElement('strong');
     heading.textContent = `Terna ${index + 1} · forma ${solution.posture}`;
+    const branches = document.createElement('span');
+    branches.className = 'ik-branch-description';
+    branches.textContent = `r = ${solution.radial_sign > 0 ? '+ρ' : '−ρ'} · codo ${solution.elbow_sign > 0 ? '+' : solution.elbow_sign < 0 ? '−' : 'alineado'}`;
     const angles = document.createElement('span');
-    angles.textContent = `q₁ ${displayDegrees(solution.q_deg[0])}  ·  q₂ ${displayDegrees(solution.q_deg[1])}  ·  q₃ ${displayDegrees(solution.q_deg[2])}`;
-    button.append(heading, angles);
+    angles.className = 'ik-branch-angles';
+    angles.innerHTML = `<span><small>BASE q₁</small><b>${displayDegrees(solution.q_deg[0])}</b></span><span><small>HOMBRO q₂</small><b>${displayDegrees(solution.q_deg[1])}</b></span><span><small>CODO q₃</small><b>${displayDegrees(solution.q_deg[2])}</b></span>`;
+    button.append(heading, branches, angles);
     ui.ikSolutions.append(button);
+  }
+}
+
+function updateInverseTourControls() {
+  const count = activeInverseCase?.solutions.length || 0;
+  const moving = Boolean(inverseTransition);
+  ui.ikTourControls.hidden = count < 2;
+  ui.ikPrevious.disabled = inverseSolutionIndex === 0 && !moving;
+  ui.ikNext.disabled = inverseSolutionIndex === count - 1 && !moving;
+  ui.ikTourPlay.textContent = inverseTourPlaying
+    ? '■ Detener recorrido'
+    : `▶ Ver las ${count} posturas`;
+  ui.ikTourStatus.textContent = moving
+    ? `Terna ${inverseTransition.fromIndex + 1} → ${inverseTransition.toIndex + 1}`
+    : `Terna ${inverseSolutionIndex + 1} de ${count}`;
+}
+
+function stopInverseTour() {
+  inverseTourPlaying = false;
+  inverseTourHold = 0;
+  inverseTransition = null;
+  if (activeInverseCase?.solutions.length) {
+    inverseLiveQ = activeInverseCase.solutions[inverseSolutionIndex].q.slice();
+    if (activeInverseCase.base_free) inverseLiveQ[0] = Number(ui.ikYaw.value) * Math.PI / 180;
+  }
+  updateInverseTourControls();
+}
+
+function moveToInverseSolution(index) {
+  const solutions = activeInverseCase.solutions;
+  if (index < 0 || index >= solutions.length) return;
+  const target = solutions[index];
+  const toQ = target.q.slice();
+  if (activeInverseCase.base_free) toQ[0] = Number(ui.ikYaw.value) * Math.PI / 180;
+  if (index === inverseSolutionIndex && !inverseTransition) return;
+  const fromQ = inverseLiveQ?.slice() || solutions[inverseSolutionIndex].q.slice();
+  inverseTransition = {
+    fromIndex: inverseSolutionIndex,
+    toIndex: index,
+    fromQ,
+    toQ,
+    elapsed: 0,
+    duration: 1.7,
+  };
+  updateInverseTourControls();
+  renderInverseScene();
+}
+
+function tickInverse(delta) {
+  if (mode !== 'inverse' || !activeInverseCase?.solutions.length) return;
+  if (inverseTransition) {
+    const transition = inverseTransition;
+    transition.elapsed = Math.min(transition.duration, transition.elapsed + delta);
+    const fraction = transition.elapsed / transition.duration;
+    const eased = fraction * fraction * (3 - 2 * fraction);
+    inverseLiveQ = lerpArray(transition.fromQ, transition.toQ, eased);
+    if (fraction >= 1) {
+      inverseSolutionIndex = transition.toIndex;
+      inverseLiveQ = transition.toQ.slice();
+      inverseTransition = null;
+      inverseTourHold = inverseTourPlaying ? 1.3 : 0;
+      updateInverseTourControls();
+    }
+    renderInverseScene();
+  } else if (inverseTourPlaying) {
+    inverseTourHold -= delta;
+    if (inverseTourHold <= 0) {
+      if (inverseSolutionIndex + 1 < activeInverseCase.solutions.length) {
+        moveToInverseSolution(inverseSolutionIndex + 1);
+      } else {
+        inverseTourPlaying = false;
+        updateInverseTourControls();
+      }
+    }
   }
 }
 
@@ -677,7 +785,7 @@ function rotateJointsAboutBase(joints, angle) {
 
 function showInverseGhost(selected, yawOffset) {
   const alternative = activeInverseCase.solutions.find((solution) => solution.posture !== selected?.posture);
-  const visible = Boolean(alternative);
+  const visible = Boolean(selected && alternative && !inverseTransition);
   inverseGhost.segments.forEach((mesh) => { mesh.visible = visible; });
   inverseGhost.elbow.visible = visible;
   if (!alternative) return;
@@ -694,14 +802,16 @@ function renderInverseScene() {
   if (mode !== 'inverse' || !activeInverseCase) return;
   const current = activeInverseCase;
   const selected = current.solutions[inverseSolutionIndex] || null;
+  const moving = Boolean(inverseTransition);
   const pairIndex = selected
     ? current.solutions.findIndex((solution, index) => index !== inverseSolutionIndex && solution.posture === selected.posture)
     : -1;
   const pose = selected || current.limit_pose;
-  const yawDegrees = current.base_free ? Number(ui.ikYaw.value) : 0;
+  const qNow = inverseLiveQ || pose.q;
+  const yawDegrees = current.base_free ? Number(ui.ikYaw.value) : qNow[0] * 180 / Math.PI;
   const yawOffset = current.base_free ? yawDegrees * Math.PI / 180 - selected.q[0] : 0;
-  const jointCoordinates = current.base_free ? rotateJointsAboutBase(pose.joints, yawOffset) : pose.joints;
-  const q1 = current.base_free ? yawDegrees * Math.PI / 180 : pose.q[0];
+  const jointCoordinates = selected ? jointsFromAngles(qNow) : pose.joints;
+  const q1 = qNow[0];
   applyRobotPose(jointCoordinates, q1);
   desiredMarker.position.copy(point(current.target));
   desiredMarker.material.color.setHex(selected ? 0xa5d0f0 : 0xffbc7c);
@@ -717,34 +827,37 @@ function renderInverseScene() {
   connectorPositions.setXYZ(1, ...current.target);
   connectorPositions.needsUpdate = true;
   errorConnector.geometry.computeBoundingSphere();
-  errorConnector.material.color.setHex(selected ? 0xffffff : 0xffbc7c);
-  ui.ikHudTitle.textContent = selected
+  errorConnector.material.color.setHex(moving || !selected ? 0xffbc7c : 0xffffff);
+  ui.ikHudTitle.textContent = moving
+    ? `Terna ${inverseTransition.fromIndex + 1} → terna ${inverseTransition.toIndex + 1}`
+    : selected
     ? `Terna ${inverseSolutionIndex + 1} de ${current.solutions.length} · forma ${selected.posture}`
     : 'Fuera del alcance · 0 soluciones';
   ui.ikHudAngles.textContent = selected
-    ? current.base_free
-      ? 'La base gira sin mover la punta.'
-      : pairIndex >= 0
-        ? `La terna ${pairIndex + 1} deja el brazo en esta misma forma.`
-        : 'La punta coincide con el objetivo.'
+    ? `q₁ ${displayDegrees(qNow[0] * 180 / Math.PI)} · q₂ ${displayDegrees(qNow[1] * 180 / Math.PI)} · q₃ ${displayDegrees(qNow[2] * 180 / Math.PI)}`
     : `Faltan ${displayNumber(current.limit_pose.distance_to_target_m * 1000, 1)} mm`;
-  ui.ikHudDetail.textContent = selected
+  ui.ikHudDetail.textContent = moving
+    ? 'Movimiento ilustrativo: la punta puede separarse del objetivo entre ternas.'
+    : selected
     ? current.base_free
       ? 'q₁ puede tomar cualquier ángulo.'
       : pairIndex >= 0
-        ? 'Compara la flecha de base entre ambas ternas.'
-        : 'La cinemática directa devuelve el mismo XYZ.'
+        ? `La terna ${pairIndex + 1} dibuja la misma forma con otros ángulos.`
+        : 'La punta llega al mismo punto XYZ.'
     : 'La postura dibujada es el límite, no una solución.';
-  ui.sceneLegend.textContent = selected
+  ui.sceneLegend.textContent = moving
+    ? 'Línea ámbar: separación temporal de la punta al objetivo'
+    : selected
     ? 'Flecha: giro de base · ámbar: otra forma · esfera: objetivo'
     : 'Esfera ámbar: objetivo · línea: distancia que falta';
   updateLayerVisibility();
-  renderInverseTelemetry(selected, pose, yawDegrees);
+  renderInverseTelemetry(selected, pose, qNow, jointCoordinates);
 }
 
-function renderInverseTelemetry(selected, pose, yawDegrees) {
+function renderInverseTelemetry(selected, pose, qNow, jointCoordinates) {
   const current = activeInverseCase;
   const count = current.solutions.length;
+  const moving = Boolean(inverseTransition);
   const explanation = ikExplanation(current);
   showIkCount(explanation.parts, explanation.short);
   ui.ikMathExplanation.textContent = explanation.long;
@@ -759,21 +872,31 @@ function renderInverseTelemetry(selected, pose, yawDegrees) {
     ? 'Dentro del alcance ideal (0,050–0,530 m).'
     : 'Fuera del alcance ideal (0,050–0,530 m).';
   ui.ikD.textContent = displayNumber(current.D, 6);
-  ui.ikSelectedLabel.textContent = selected ? 'COMPRUEBA LOS ÁNGULOS' : 'LÍMITE DEL BRAZO';
-  ui.ikSelectedPosture.textContent = selected
+  ui.ikSelectedLabel.textContent = moving ? 'ÁNGULOS DURANTE EL MOVIMIENTO' : selected ? 'COMPRUEBA LOS ÁNGULOS' : 'LÍMITE DEL BRAZO';
+  ui.ikSelectedPosture.textContent = moving
+    ? `De terna ${inverseTransition.fromIndex + 1} a terna ${inverseTransition.toIndex + 1}`
+    : selected
     ? `Terna ${inverseSolutionIndex + 1} · forma ${selected.posture}`
     : 'Postura ilustrativa, no solución';
   ui.ikSelectedAngles.hidden = !selected;
-  const qDegrees = selected ? selected.q_deg.slice() : pose.q.map((angle) => angle * 180 / Math.PI);
-  if (current.base_free) qDegrees[0] = yawDegrees;
+  const qDegrees = qNow.map((angle) => angle * 180 / Math.PI);
   ui.ikQ1.textContent = displayNumber(qDegrees[0], 2);
   ui.ikQ2.textContent = displayNumber(qDegrees[1], 2);
   ui.ikQ3.textContent = displayNumber(qDegrees[2], 2);
-  ui.ikResidualLabel.textContent = selected ? 'Diferencia al volver a XYZ' : 'Distancia que falta';
+  const residual = selected ? Math.hypot(...jointCoordinates[3].map((value, index) => value - current.target[index])) : 0;
+  ui.ikResidualLabel.textContent = moving ? 'Punta al objetivo, ahora' : selected ? 'Diferencia al volver a XYZ' : 'Distancia que falta';
   ui.ikResidual.textContent = selected
-    ? (selected.residual_m < 1e-9 ? '≈ 0 mm' : displayNumber(selected.residual_m * 1000, 6) + ' mm')
+    ? (residual < 1e-9 ? '≈ 0 mm' : displayNumber(residual * 1000, moving ? 1 : 6) + ' mm')
     : displayNumber(pose.distance_to_target_m * 1000, 1) + ' mm';
-  if (!selected) {
+  ui.ikAngleChange.hidden = !selected || inverseSolutionIndex === 0 || moving;
+  if (selected && inverseSolutionIndex > 0 && !moving) {
+    const prior = current.solutions[inverseSolutionIndex - 1];
+    ui.ikAngleChangeLabel.textContent = `CAMBIO DESDE TERNA ${inverseSolutionIndex}`;
+    ui.ikAngleChangeValues.textContent = selected.q_deg.map((value, index) => `Δq${index + 1} ${displaySignedDegrees(value - prior.q_deg[index])}`).join(' · ');
+  }
+  if (moving) {
+    ui.ikSelectedNote.textContent = 'Entre soluciones se interpolan los giros; solo las posturas finales alcanzan el XYZ.';
+  } else if (!selected) {
     ui.ikSelectedNote.textContent = 'La postura dibujada marca hasta dónde llega el brazo.';
   } else if (current.base_free) {
     ui.ikSelectedNote.textContent = 'Al girar q₁, la punta sigue en el mismo punto.';
@@ -784,30 +907,35 @@ function renderInverseTelemetry(selected, pose, yawDegrees) {
       : 'Con estos ángulos, la punta vuelve al punto XYZ del modelo.';
   }
   for (const [index, button] of [...ui.ikSolutions.querySelectorAll('button')].entries()) {
-    const active = index === inverseSolutionIndex;
+    const active = index === inverseSolutionIndex && !moving;
     button.classList.toggle('active', active);
+    button.classList.toggle('arriving', moving && index === inverseTransition.toIndex);
     button.setAttribute('aria-pressed', String(active));
   }
-  ui.ikYawValue.textContent = displayDegrees(yawDegrees);
+  ui.ikYawValue.textContent = displayDegrees(qDegrees[0]);
 }
 
 function selectInverseCase() {
   if (!dataset?.inverse_cases) return;
   const found = dataset.inverse_cases.find((item) => item.id === ui.ikCase.value);
   if (!found) throw new Error('No se encontró el caso de cinemática inversa seleccionado.');
+  stopInverseTour();
   activeInverseCase = found;
   inverseSolutionIndex = 0;
+  inverseLiveQ = found.solutions[0]?.q.slice() || null;
   ui.ikYaw.value = '0';
   ui.ikYawWrap.hidden = !found.base_free;
   ui.ikCaseDescription.textContent = ikDescriptions[found.id] || '';
   ui.sceneTitle.textContent = found.label;
   populateInverseSolutions();
+  updateInverseTourControls();
   renderInverseScene();
 }
 
 function setMode(next) {
   if (!dataset || next === mode) return;
   if (next === 'inverse') trajectoryWasPlaying = playing;
+  if (next !== 'inverse') stopInverseTour();
   mode = next;
   const inverse = next === 'inverse';
   ui.modeTrajectory.classList.toggle('active', !inverse);
@@ -903,6 +1031,7 @@ function tick(timestamp) {
     }
     renderPose();
   }
+  tickInverse(delta);
   if (controls) controls.update();
   if (renderer) renderer.render(scene, camera);
   requestAnimationFrame(tick);
@@ -915,10 +1044,37 @@ function wireControls() {
   ui.ikSolutions.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-index]');
     if (!button || mode !== 'inverse') return;
-    inverseSolutionIndex = Number(button.dataset.index);
+    inverseTourPlaying = false;
+    inverseTourHold = 0;
+    moveToInverseSolution(Number(button.dataset.index));
+  });
+  ui.ikTourPlay.addEventListener('click', () => {
+    if (inverseTourPlaying) {
+      stopInverseTour();
+    } else {
+      stopInverseTour();
+      inverseSolutionIndex = 0;
+      inverseLiveQ = activeInverseCase.solutions[0].q.slice();
+      if (activeInverseCase.base_free) inverseLiveQ[0] = Number(ui.ikYaw.value) * Math.PI / 180;
+      inverseTourPlaying = true;
+      inverseTourHold = 1.3;
+      updateInverseTourControls();
+    }
     renderInverseScene();
   });
-  ui.ikYaw.addEventListener('input', renderInverseScene);
+  ui.ikPrevious.addEventListener('click', () => {
+    inverseTourPlaying = false;
+    moveToInverseSolution(Math.max(0, inverseSolutionIndex - 1));
+  });
+  ui.ikNext.addEventListener('click', () => {
+    inverseTourPlaying = false;
+    moveToInverseSolution(Math.min(activeInverseCase.solutions.length - 1, inverseSolutionIndex + 1));
+  });
+  ui.ikYaw.addEventListener('input', () => {
+    stopInverseTour();
+    inverseLiveQ[0] = Number(ui.ikYaw.value) * Math.PI / 180;
+    renderInverseScene();
+  });
   ui.scenario.addEventListener('change', selectCase);
   ui.methodPinv.addEventListener('click', () => setMethod('pinv'));
   ui.methodDls.addEventListener('click', () => setMethod('dls'));

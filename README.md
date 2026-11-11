@@ -61,6 +61,15 @@ añade `--results .\nombre_de_carpeta`. Mantén abierta la terminal del visor;
 en este equipo. La biblioteca Three.js está incluida en `viewer/vendor/`, con
 su licencia, y el visor no necesita conexión a una CDN.
 
+En **Cinemática inversa → Regular**, el botón **Ver las 4 posturas** anima las
+cuatro ternas de `inversa.csv` hacia un mismo punto XYZ. Cada tarjeta muestra
+q₁ (base), q₂ (hombro), q₃ (codo), el signo de r y la rama del codo; el panel
+de datos muestra los ángulos durante el movimiento, el cambio respecto a la
+terna anterior y la distancia instantánea de la punta al objetivo. El paso
+entre ternas interpola ángulos para ilustrar el cambio de postura: solo las
+posturas finales son soluciones de cinemática inversa. También puedes elegir
+una tarjeta o avanzar con **Anterior / Siguiente**.
+
 La escena anima el modelo cinemático nominal. Los límites de velocidad y el
 seguimiento corresponden a la simulación de control; no son una grabación ni
 una reproducción física del prototipo publicado.

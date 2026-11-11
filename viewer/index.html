@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#02244A">
   <title>Ramzy 3R · Grupo 3 · MIA-12</title>
-  <link rel="stylesheet" href="./style.css?v=inversa-clara-1">
+  <link rel="stylesheet" href="./style.css?v=ternas-animadas-1">
   <script type="importmap">
     {
       "imports": {
@@ -96,7 +96,16 @@
             <p class="field-help" id="ikCaseDescription"></p>
           </section>
           <section class="panel-block ik-branch-panel">
-            <div class="field-label">ELIGE UNA TERNA DE ÁNGULOS</div>
+            <div id="ikSolutionsTitle" class="field-label">TERNAS · UN MISMO OBJETIVO</div>
+            <div id="ikTourControls" class="ik-tour-controls" hidden>
+              <button id="ikTourPlay" class="ik-tour-play" type="button">▶ Ver las 4 posturas</button>
+              <div class="ik-tour-stepper">
+                <button id="ikPrevious" type="button" aria-label="Terna anterior">← Anterior</button>
+                <span id="ikTourStatus" role="status">Terna 1 de 4</span>
+                <button id="ikNext" type="button" aria-label="Terna siguiente">Siguiente →</button>
+              </div>
+              <p class="ik-tour-note">Cada terna llega al mismo XYZ. El paso entre posturas es una animación ilustrativa.</p>
+            </div>
             <div id="ikSolutions" class="ik-solutions" role="group" aria-label="Ternas de ángulos de cinemática inversa"></div>
             <div id="ikYawWrap" class="ik-yaw-wrap" hidden>
               <label for="ikYaw">Giro libre de base q₁ <strong id="ikYawValue">0°</strong></label>
@@ -252,6 +261,10 @@
             <div class="joint-row"><span>q₂ · hombro</span><strong id="ikQ2">—</strong><small>°</small></div>
             <div class="joint-row"><span>q₃ · codo</span><strong id="ikQ3">—</strong><small>°</small></div>
           </div>
+          <div id="ikAngleChange" class="ik-angle-change" hidden>
+            <span id="ikAngleChangeLabel">CAMBIO DESDE TERNA ANTERIOR</span>
+            <strong id="ikAngleChangeValues">—</strong>
+          </div>
           <div class="split-metric"><span id="ikResidualLabel">Residuo FK → XYZ</span><strong id="ikResidual">—</strong></div>
           <p id="ikSelectedNote" class="ik-flow-caption">—</p>
         </div>
@@ -331,7 +344,7 @@
       </div>
     </dialog>
   </div>
-  <script type="module" src="./app.js?v=inversa-clara-1"></script>
+  <script type="module" src="./app.js?v=ternas-animadas-1"></script>
   <script type="module" src="./presentation.js?v=inversa-clara-1"></script>
 </body>
 </html>
