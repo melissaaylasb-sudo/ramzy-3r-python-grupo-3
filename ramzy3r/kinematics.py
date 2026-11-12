@@ -69,29 +69,62 @@ class IKSolution:
 
 
 def inverse_kinematics(position, tol=1e-12):
-    """Soluciones de posición sin límites articulares; lista vacía si inalcanzable."""
+    """Resuelve todas las ternas (q1, q2, q3) para un objetivo XYZ.
+
+    El orden sigue la construcción geométrica mostrada en el simulador:
+    XYZ -> rho, h -> d geométrica -> alcance -> D -> q3 -> alpha, beta,
+    q2 -> q1.  ``d`` es una distancia en metros; ``D = cos(q3)`` no tiene
+    unidades. No se aplican límites articulares reales.
+    """
     x, y, z = np.asarray(position, dtype=float)
     if not np.all(np.isfinite([x, y, z])):
         raise ValueError("El objetivo debe tener coordenadas finitas.")
+
+    # 1. Pasar del espacio mundo XYZ al plano local r-h del hombro.
     rho = np.hypot(x, y)
     h = z - L1
-    d = (rho**2 + h**2 - L2**2 - L3**2) / (2 * L2 * L3)
-    if d < -1. - tol or d > 1. + tol:
+
+    # 2. Distancia geométrica recta desde el hombro hasta el objetivo.
+    d = np.hypot(rho, h)
+
+    # 3. Condición de alcance: el objetivo debe estar dentro del anillo.
+    d_min = abs(L2 - L3)
+    d_max = L2 + L3
+    if d < d_min - tol or d > d_max + tol:
         return []
-    if abs(abs(d) - 1.) <= tol:
-        d = np.copysign(1., d)
-    s = np.sqrt(max(0., 1. - d * d))
+
+    # La tolerancia permite que una frontera calculada quede exactamente en ella.
+    d = min(d_max, max(d_min, d))
+
+    # 4. Ley de cosenos: D no es distancia; D = cos(q3).
+    D = (d**2 - L2**2 - L3**2) / (2 * L2 * L3)
+    D = float(np.clip(D, -1., 1.))
+
+    # 5. Las dos ramas del codo provienen de sin(q3) = +/-sqrt(1 - D^2).
+    sin_q3_abs = np.sqrt(max(0., 1. - D**2))
     on_axis = rho <= tol
-    angle = 0. if on_axis else np.arctan2(y, x)
     solutions = []
+
+    # 6. Para rho > 0 hay dos orientaciones: r = +rho y r = -rho.
     for radial_sign in (1,) if on_axis else (1, -1):
-        q1 = angle if radial_sign == 1 else angle + np.pi
         r = radial_sign * rho
-        for elbow_sign in (1,) if s == 0. else (1, -1):
-            q3 = np.arctan2(elbow_sign * s, d)
-            q2 = np.arctan2(h, r) - np.arctan2(L3 * np.sin(q3), L2 + L3 * d)
+
+        for elbow_sign in (1,) if sin_q3_abs == 0. else (1, -1):
+            # 7. Primero se obtiene el codo q3.
+            q3 = np.arctan2(elbow_sign * sin_q3_abs, D)
+
+            # 8. alpha apunta del hombro al objetivo; beta corrige por L3.
+            alpha = np.arctan2(h, r)
+            beta = np.arctan2(L3 * np.sin(q3), L2 + L3 * D)
+            q2 = alpha - beta
+
+            # 9. Al final, q1 orienta la base hacia el objetivo en el plano XY.
+            q1 = 0. if on_axis else np.arctan2(y, x)
+            if radial_sign == -1:
+                q1 += np.pi
+
             solutions.append(IKSolution(wrap([q1, q2, q3]), radial_sign,
-                                        elbow_sign if s > 0. else 0, on_axis))
+                                        elbow_sign if sin_q3_abs > 0. else 0, on_axis))
     return solutions
 
 
