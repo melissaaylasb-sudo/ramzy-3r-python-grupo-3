@@ -212,10 +212,27 @@ def singularity_measures(q, near_threshold=0.020):
 
 
 def singular_cases():
+    """Posturas de ejemplo en radianes, en el orden [base, hombro, codo].
+
+    El Jacobiano lineal pierde rango cuando det(J) = -L2*L3*r*sin(q3) = 0.
+    Como L2 y L3 son positivas, basta con que uno de los dos factores
+    restantes sea cero. Cada condición define una familia de posturas:
+
+    - sin(q3) = 0: el codo está extendido o plegado. En ese instante,
+      el efector pierde la capacidad de moverse a lo largo de los eslabones.
+    - r = 0: el efector está sobre el eje de la base. Girar solo la base
+      deja la punta en el mismo punto.
+
+    q1 es libre porque el determinante no depende del giro de la base.
+    """
     return {
+        # Referencia sin singularidad (rango 3) para comparar con los demás casos.
         "regular": np.deg2rad([30., 60., -60.]),
+        # Con q3 = 0 o π, cualquier q2 sirve. Aquí se elige 0.3 rad.
         "codo_extend": np.array([0.2, 0.3, 0.]),
         "codo_plegado": np.array([0.2, 0.3, np.pi]),
+        # Elegimos q3 = π/2. Entonces r = 0 exige tan(q2) = L2/L3.
         "eje_base": np.array([0.2, np.arctan2(L2, L3), np.pi / 2]),
+        # Brazo vertical y extendido: r = 0 y sin(q3) = 0 a la vez.
         "interseccion": np.array([0.2, np.pi / 2, 0.]),
     }
