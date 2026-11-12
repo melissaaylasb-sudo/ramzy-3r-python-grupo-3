@@ -70,6 +70,12 @@ entre ternas interpola ángulos para ilustrar el cambio de postura: solo las
 posturas finales son soluciones de cinemática inversa. También puedes elegir
 una tarjeta o avanzar con **Anterior / Siguiente**.
 
+En la escena y en el panel de la derecha se ven los valores de ρ (distancia
+horizontal), h (altura desde el hombro) y d (diagonal hombro–objetivo). El
+panel muestra el cálculo numérico de d y de D = cos(q₃), además de r con
+signo para la terna elegida. **d y D son magnitudes diferentes**: d se mide
+en metros y D no tiene unidad.
+
 La escena anima el modelo cinemático nominal. Los límites de velocidad y el
 seguimiento corresponden a la simulación de control; no son una grabación ni
 una reproducción física del prototipo publicado.

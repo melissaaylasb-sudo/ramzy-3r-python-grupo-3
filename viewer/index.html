@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#02244A">
   <title>Ramzy 3R · Grupo 3 · MIA-12</title>
-  <link rel="stylesheet" href="./style.css?v=ternas-animadas-1">
+  <link rel="stylesheet" href="./style.css?v=ik-valores-1">
   <script type="importmap">
     {
       "imports": {
@@ -104,7 +104,7 @@
                 <span id="ikTourStatus" role="status">Terna 1 de 4</span>
                 <button id="ikNext" type="button" aria-label="Terna siguiente">Siguiente →</button>
               </div>
-              <p class="ik-tour-note">Cada terna llega al mismo XYZ. El paso entre posturas es una animación ilustrativa.</p>
+              <p class="ik-tour-note">ρ y d describen el punto; r lleva signo según la orientación. Cada terna llega al mismo XYZ.</p>
             </div>
             <div id="ikSolutions" class="ik-solutions" role="group" aria-label="Ternas de ángulos de cinemática inversa"></div>
             <div id="ikYawWrap" class="ik-yaw-wrap" hidden>
@@ -244,13 +244,38 @@
         <div class="telemetry-card ik-step-card">
           <div class="ik-step-head"><span class="ik-step-number">1</span><span class="metric-label">PUNTO DE LLEGADA · XYZ EN m</span></div>
           <div id="ikTargetXYZ" class="coord-value">— / — / —</div>
-          <div class="split-metric"><span>Distancia desde el hombro</span><strong id="ikDistance">—</strong></div>
+          <div id="ikMeasureLayout" class="ik-measure-layout">
+            <svg id="ikTriangle" class="ik-triangle" viewBox="0 0 100 88" role="img" aria-label="Triángulo: ρ horizontal, h vertical y d diagonal">
+              <path d="M10 76H83V14Z" fill="rgba(165,208,240,.13)" stroke="none"/>
+              <path d="M10 76H83" stroke="#4a91bb" stroke-width="3"/>
+              <path d="M83 76V14" stroke="#8769c8" stroke-width="3"/>
+              <path d="M10 76L83 14" stroke="#3ca487" stroke-width="3"/>
+              <path d="M76 76V69H83" fill="none" stroke="#315b72" stroke-width="1"/>
+              <text x="44" y="87" fill="#155b7d">ρ</text>
+              <text x="88" y="49" fill="#6744a5">h</text>
+              <text x="35" y="37" fill="#237c62">d</text>
+            </svg>
+            <div class="ik-measures">
+              <div><span>ρ · horizontal</span><strong id="ikRho">—</strong></div>
+              <div><span>h · altura al hombro</span><strong id="ikHeight">—</strong></div>
+              <div><span>d · diagonal al punto</span><strong id="ikDistance">—</strong></div>
+            </div>
+          </div>
+          <p id="ikNumericDistance" class="ik-measure-formula">d = √(ρ² + h²)</p>
           <div class="ik-range-track" aria-hidden="true"><span id="ikRangeMarker"></span></div>
           <p id="ikReachStatus" class="ik-flow-caption">El brazo alcanza puntos entre 0,050 y 0,530 m.</p>
         </div>
         <div class="telemetry-card ik-step-card ik-options-card">
           <div class="ik-step-head"><span class="ik-step-number">2</span><span class="metric-label">¿CUÁNTAS OPCIONES HAY?</span></div>
           <div id="ikBranchEquation" class="ik-branch-equation">—</div>
+          <div class="ik-branch-values">
+            <div><span id="ikDLabel">D = cos(q₃) · sin unidad</span><strong id="ikD">—</strong></div>
+            <div><span id="ikRLabel">r de esta terna</span><strong id="ikSelectedR">—</strong></div>
+            <div><span>q₃ de esta terna</span><strong id="ikElbowBranch">—</strong></div>
+          </div>
+          <p id="ikNumericD" class="ik-measure-formula">D = (d² − L₂² − L₃²) / (2 L₂ L₃)</p>
+          <p id="ikQ3FromD" class="ik-measure-formula">q₃ = ± arccos(D)</p>
+          <p id="ikBranchMeaning" class="ik-flow-caption">—</p>
           <p id="ikStatus" class="ik-flow-caption">—</p>
         </div>
         <div class="telemetry-card ik-step-card ik-selected-card">
@@ -270,10 +295,9 @@
         </div>
         <details class="telemetry-card ik-detail-card">
           <summary>Ver cálculo geométrico</summary>
-          <div class="split-metric"><span>Radio horizontal ρ</span><strong id="ikRho">—</strong></div>
-          <div class="split-metric"><span>Altura h = z − L₁</span><strong id="ikHeight">—</strong></div>
+          <p>ρ = √(x² + y²) siempre es positiva. h = z − L₁. En cada rama, r = +ρ o −ρ; no es otra distancia que se suma.</p>
           <div class="ik-equation">D = (d² − L₂² − L₃²) / (2 L₂ L₃)</div>
-          <div class="split-metric"><span>Valor de D</span><strong id="ikD">—</strong></div>
+          <p>Si −1 ≤ D ≤ 1, los codos salen de q₃ = ± arccos(D). Después se calcula q₂ para cada r y cada q₃.</p>
           <p id="ikMathExplanation" class="ik-math-copy">—</p>
         </details>
       </aside>
@@ -344,7 +368,7 @@
       </div>
     </dialog>
   </div>
-  <script type="module" src="./app.js?v=ternas-animadas-1"></script>
+  <script type="module" src="./app.js?v=ik-valores-1"></script>
   <script type="module" src="./presentation.js?v=inversa-clara-1"></script>
 </body>
 </html>

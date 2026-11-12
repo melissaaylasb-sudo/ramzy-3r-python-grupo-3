@@ -72,7 +72,17 @@ const ui = {
   ikRho: byId('ikRho'),
   ikHeight: byId('ikHeight'),
   ikDistance: byId('ikDistance'),
+  ikMeasureLayout: byId('ikMeasureLayout'),
+  ikTriangle: byId('ikTriangle'),
+  ikNumericDistance: byId('ikNumericDistance'),
   ikD: byId('ikD'),
+  ikDLabel: byId('ikDLabel'),
+  ikNumericD: byId('ikNumericD'),
+  ikQ3FromD: byId('ikQ3FromD'),
+  ikRLabel: byId('ikRLabel'),
+  ikSelectedR: byId('ikSelectedR'),
+  ikElbowBranch: byId('ikElbowBranch'),
+  ikBranchMeaning: byId('ikBranchMeaning'),
   ikMathExplanation: byId('ikMathExplanation'),
   ikSelectedLabel: byId('ikSelectedLabel'),
   ikSelectedPosture: byId('ikSelectedPosture'),
@@ -129,6 +139,7 @@ let saturationRing = null;
 let inverseReachOuter = null;
 let inverseReachInner = null;
 let inverseGhost = null;
+let inverseMeasurementGuide = null;
 
 const baseTarget = new THREE.Vector3(0.18, 0, 0.01);
 const yAxis = new THREE.Vector3(0, 1, 0);
@@ -160,6 +171,72 @@ function createLabel(text, color, position) {
   sprite.scale.set(0.07, 0.07, 1);
   sprite.renderOrder = 10;
   scene.add(sprite);
+}
+
+function makeMeasurementSprite(text, color, position) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 128;
+  const context = canvas.getContext('2d');
+  context.fillStyle = 'rgba(2, 36, 74, 0.93)';
+  context.fillRect(4, 10, 504, 108);
+  context.strokeStyle = color;
+  context.lineWidth = 5;
+  context.strokeRect(4, 10, 504, 108);
+  context.fillStyle = '#ffffff';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.font = 'bold 48px Segoe UI, sans-serif';
+  context.fillText(text, 256, 64);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+  sprite.position.copy(position);
+  sprite.scale.set(0.19, 0.048, 1);
+  sprite.renderOrder = 11;
+  return sprite;
+}
+
+function updateInverseMeasurementGuide(current) {
+  if (inverseMeasurementGuide) {
+    scene.remove(inverseMeasurementGuide);
+    inverseMeasurementGuide.traverse((object) => {
+      object.geometry?.dispose();
+      object.material?.map?.dispose();
+      object.material?.dispose();
+    });
+  }
+  inverseMeasurementGuide = new THREE.Group();
+  const shoulder = new THREE.Vector3(0, 0, dataset.geometry_m[0]);
+  const projection = new THREE.Vector3(current.target[0], current.target[1], dataset.geometry_m[0]);
+  const target = point(current.target);
+  const addMeasure = (start, end, color, caption, position) => {
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([start, end]),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.82, depthTest: false }),
+    );
+    line.renderOrder = 9;
+    inverseMeasurementGuide.add(line);
+    inverseMeasurementGuide.add(makeMeasurementSprite(caption, '#' + color.toString(16).padStart(6, '0'), position));
+  };
+  if (current.rho > 1e-8) {
+    addMeasure(shoulder, projection, 0x72bad6,
+      `ρ ${displayNumber(current.rho, 3)} m`,
+      shoulder.clone().lerp(projection, 0.48).add(new THREE.Vector3(0, 0, 0.045)));
+  }
+  if (Math.abs(current.h) > 1e-8) {
+    addMeasure(projection, target, 0xa18bdc,
+      `h ${displayNumber(current.h, 3)} m`,
+      projection.clone().lerp(target, 0.55).add(new THREE.Vector3(0.055, 0.005, 0)));
+  }
+  const side = new THREE.Vector3(-current.target[1], current.target[0], 0);
+  if (side.length() > 0) side.normalize().multiplyScalar(0.055);
+  else side.set(0.055, 0, 0);
+  addMeasure(shoulder, target, 0x5bd1a9,
+    `d ${displayNumber(current.d, 3)} m`,
+    shoulder.clone().lerp(target, 0.53).add(side));
+  scene.add(inverseMeasurementGuide);
+  inverseMeasurementGuide.visible = mode === 'inverse';
 }
 
 function makeSegment(radius, material) {
@@ -694,7 +771,8 @@ function populateInverseSolutions() {
     heading.textContent = `Terna ${index + 1} · forma ${solution.posture}`;
     const branches = document.createElement('span');
     branches.className = 'ik-branch-description';
-    branches.textContent = `r = ${solution.radial_sign > 0 ? '+ρ' : '−ρ'} · codo ${solution.elbow_sign > 0 ? '+' : solution.elbow_sign < 0 ? '−' : 'alineado'}`;
+    const signedR = solution.radial_sign * activeInverseCase.rho;
+    branches.textContent = `r = ${signedR < -1e-8 ? '−' : '+'}${displayNumber(Math.abs(signedR), 3)} m · codo ${solution.elbow_sign > 0 ? '+' : solution.elbow_sign < 0 ? '−' : 'alineado'}`;
     const angles = document.createElement('span');
     angles.className = 'ik-branch-angles';
     angles.innerHTML = `<span><small>BASE q₁</small><b>${displayDegrees(solution.q_deg[0])}</b></span><span><small>HOMBRO q₂</small><b>${displayDegrees(solution.q_deg[1])}</b></span><span><small>CODO q₃</small><b>${displayDegrees(solution.q_deg[2])}</b></span>`;
@@ -863,15 +941,40 @@ function renderInverseTelemetry(selected, pose, qNow, jointCoordinates) {
   ui.ikMathExplanation.textContent = explanation.long;
   ui.ikStatus.textContent = explanation.status;
   ui.ikTargetXYZ.textContent = current.target.map((part) => displayNumber(part, 3)).join(' / ');
-  ui.ikRho.textContent = displayNumber(current.rho, 6) + ' m';
+  ui.ikRho.textContent = displayNumber(current.rho, 3) + ' m';
   ui.ikHeight.textContent = displayNumber(current.h, 6) + ' m';
-  ui.ikDistance.textContent = displayNumber(current.d, 3) + ' m';
+  ui.ikDistance.textContent = displayNumber(current.d, 6) + ' m';
+  const degenerateTriangle = current.rho < 1e-8 || Math.abs(current.h) < 1e-8;
+  ui.ikTriangle.style.display = degenerateTriangle ? 'none' : '';
+  ui.ikMeasureLayout.classList.toggle('degenerate', degenerateTriangle);
+  ui.ikNumericDistance.textContent = `d = √(${displayNumber(current.rho, 3)}² + ${displayNumber(current.h, 6)}²) = ${displayNumber(current.d, 6)} m`;
   ui.ikRangeMarker.style.left = `${Math.min(100, Math.max(0, current.d / 0.6 * 100))}%`;
   ui.ikRangeMarker.classList.toggle('outside', !count);
   ui.ikReachStatus.textContent = count
     ? 'Dentro del alcance ideal (0,050–0,530 m).'
     : 'Fuera del alcance ideal (0,050–0,530 m).';
-  ui.ikD.textContent = displayNumber(current.D, 6);
+  ui.ikD.textContent = displayNumber(current.D, 3);
+  ui.ikDLabel.textContent = count ? 'D = cos(q₃) · sin unidad' : 'D calculado · fuera de [−1, 1]';
+  const [ , L2, L3 ] = dataset.geometry_m;
+  ui.ikNumericD.textContent = `D = (${displayNumber(current.d, 6)}² − ${displayNumber(L2, 3)}² − ${displayNumber(L3, 3)}²) / (2·${displayNumber(L2, 3)}·${displayNumber(L3, 3)}) = ${displayNumber(current.D, 3)}`;
+  ui.ikQ3FromD.textContent = count
+    ? Math.abs(current.D) >= 1 - 1e-10
+      ? `q₃ = arccos(${displayNumber(current.D, 3)}) = ${displayDegrees(current.solutions[0].q_deg[2])} (un codo)`
+      : `q₃ = ± arccos(${displayNumber(current.D, 3)}) = ±${displayDegrees(Math.acos(Math.max(-1, Math.min(1, current.D))) * 180 / Math.PI)}`
+    : 'D fuera de [−1, 1] ⇒ no existe q₃ real.';
+  const branch = moving ? current.solutions[inverseTransition.toIndex] : selected;
+  ui.ikRLabel.textContent = moving ? 'r al llegar a la terna' : 'r de esta terna';
+  ui.ikSelectedR.textContent = branch
+    ? (branch.radial_sign * current.rho < -1e-8 ? '−' : '+') + displayNumber(current.rho, 3) + ' m'
+    : 'sin solución';
+  ui.ikElbowBranch.textContent = branch ? displayDegrees(branch.q_deg[2]) : 'sin ángulo real';
+  ui.ikBranchMeaning.textContent = !branch
+    ? 'D queda fuera de [−1, 1]: no existe q₃ real para este punto.'
+    : moving
+      ? 'Estos son los valores de llegada; los ángulos de abajo cambian durante el paso.'
+      : current.base_free
+        ? 'ρ = r = 0: la base puede girar; D fija las opciones del codo.'
+        : 'ρ es distancia positiva; r usa + o −. D fija |q₃|; su signo elige el codo.';
   ui.ikSelectedLabel.textContent = moving ? 'ÁNGULOS DURANTE EL MOVIMIENTO' : selected ? 'COMPRUEBA LOS ÁNGULOS' : 'LÍMITE DEL BRAZO';
   ui.ikSelectedPosture.textContent = moving
     ? `De terna ${inverseTransition.fromIndex + 1} a terna ${inverseTransition.toIndex + 1}`
@@ -928,6 +1031,7 @@ function selectInverseCase() {
   ui.ikCaseDescription.textContent = ikDescriptions[found.id] || '';
   ui.sceneTitle.textContent = found.label;
   populateInverseSolutions();
+  updateInverseMeasurementGuide(found);
   updateInverseTourControls();
   renderInverseScene();
 }
@@ -948,6 +1052,7 @@ function setMode(next) {
   ui.inverseTelemetry.hidden = !inverse;
   ui.playback.hidden = inverse;
   ui.ikSceneHud.hidden = !inverse;
+  if (inverseMeasurementGuide) inverseMeasurementGuide.visible = inverse;
   ui.frameBadge.hidden = inverse;
   robot.ikYawArrow.visible = inverse;
   ui.controlsTitle.textContent = inverse ? 'Cinemática inversa' : 'Simulación 3D';
