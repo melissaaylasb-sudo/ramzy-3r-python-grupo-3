@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#02244A">
   <title>Ramzy 3R · Grupo 3 · MIA-12</title>
-  <link rel="stylesheet" href="./style.css?v=ik-valores-1">
+  <link rel="stylesheet" href="./style.css?v=ik-punto-1">
   <script type="importmap">
     {
       "imports": {
@@ -94,6 +94,17 @@
               <select id="ikCaseSelect" aria-describedby="ikCaseDescription"></select>
             </div>
             <p class="field-help" id="ikCaseDescription"></p>
+          </section>
+          <section class="panel-block ik-target-panel" aria-labelledby="ikTargetInputTitle">
+            <div id="ikTargetInputTitle" class="field-label">PRUEBA UN PUNTO XYZ</div>
+            <p class="field-help ik-target-help">Escribe un objetivo en metros. El modelo ideal calcula las ternas de ángulos que llevan la punta a ese XYZ.</p>
+            <div class="ik-target-inputs">
+              <label for="ikCustomX"><span>X</span><input id="ikCustomX" type="text" value="0.333420" inputmode="decimal" aria-label="Coordenada X en metros"></label>
+              <label for="ikCustomY"><span>Y</span><input id="ikCustomY" type="text" value="0.192500" inputmode="decimal" aria-label="Coordenada Y en metros"></label>
+              <label for="ikCustomZ"><span>Z</span><input id="ikCustomZ" type="text" value="0.291147" inputmode="decimal" aria-label="Coordenada Z en metros"></label>
+            </div>
+            <button id="ikSolveTarget" class="ik-solve-target" type="button">Calcular ángulos ideales</button>
+            <p id="ikCustomStatus" class="ik-custom-status" role="status">Ejemplo cargado: punto regular alcanzable.</p>
           </section>
           <section class="panel-block ik-branch-panel">
             <div id="ikSolutionsTitle" class="field-label">TERNAS · UN MISMO OBJETIVO</div>

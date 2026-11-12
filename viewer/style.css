@@ -646,6 +646,24 @@ button:focus-visible, select:focus-visible, input:focus-visible,
 .mode-block { padding-top: 15px; padding-bottom: 15px; }
 .mode-block .field-label { margin-bottom: 8px; }
 .mode-block .segment { line-height: 1.25; min-height: 38px; }
+.ik-target-panel { background: linear-gradient(145deg, #f8fcff, #e8f4fa); }
+.ik-target-help { margin-top: -1px; }
+.ik-target-inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+.ik-target-inputs label { display: grid; gap: 5px; min-width: 0; color: #315b72; font-size: 10px; font-weight: 800; letter-spacing: .65px; }
+.ik-target-inputs input {
+  min-width: 0; width: 100%; padding: 8px 5px; border: 1px solid rgba(2, 36, 74, .24);
+  border-radius: 5px; background: #ffffff; color: #02244a; font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.ik-target-inputs input:focus { border-color: #4a91bb; }
+.ik-solve-target {
+  width: 100%; min-height: 38px; margin-top: 11px; border: 0; border-radius: 6px;
+  background: #004b62; color: #ffffff; font: inherit; font-size: 12px; font-weight: 800;
+  box-shadow: 0 3px 9px rgba(2, 36, 74, .12);
+}
+.ik-solve-target:hover { background: #02244a; }
+.ik-custom-status { min-height: 16px; margin: 8px 0 0; color: #315b72; font-size: 10px; line-height: 1.4; }
+.ik-custom-status.error { color: #9b482c; }
+.ik-custom-status.success { color: #176350; }
 .ik-branch-panel { padding-top: 18px; }
 .ik-solutions { display: grid; gap: 8px; }
 .ik-branch {

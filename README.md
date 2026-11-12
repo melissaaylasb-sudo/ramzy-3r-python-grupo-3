@@ -70,6 +70,14 @@ entre ternas interpola ángulos para ilustrar el cambio de postura: solo las
 posturas finales son soluciones de cinemática inversa. También puedes elegir
 una tarjeta o avanzar con **Anterior / Siguiente**.
 
+En ese mismo modo, el bloque **Prueba un punto XYZ** permite escribir X, Y y Z
+en metros y pulsar **Calcular ángulos ideales**. El visor resuelve el punto con
+la misma secuencia geométrica del modelo (`ρ`, `h`, `d`, `D`, `q₃`, `q₂`, `q₁`),
+muestra todas las ternas alcanzables y deja animar cada una. Si el punto queda
+fuera del anillo ideal de 0.050 a 0.530 m, informa **0 ternas** y dibuja solo la
+postura límite. El cálculo admite punto o coma decimal y, como el resto de la
+inversa nominal, no aplica límites mecánicos reales de las articulaciones.
+
 En la escena y en el panel de la derecha se ven los valores de ρ (distancia
 horizontal), h (altura desde el hombro) y d (diagonal hombro–objetivo). El
 panel muestra el cálculo numérico de d y de D = cos(q₃), además de r con

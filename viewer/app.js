@@ -17,6 +17,11 @@ const ui = {
   inverseControls: byId('inverseControls'),
   ikCase: byId('ikCaseSelect'),
   ikCaseDescription: byId('ikCaseDescription'),
+  ikCustomX: byId('ikCustomX'),
+  ikCustomY: byId('ikCustomY'),
+  ikCustomZ: byId('ikCustomZ'),
+  ikSolveTarget: byId('ikSolveTarget'),
+  ikCustomStatus: byId('ikCustomStatus'),
   ikSolutionsTitle: byId('ikSolutionsTitle'),
   ikSolutions: byId('ikSolutions'),
   ikTourControls: byId('ikTourControls'),
@@ -119,6 +124,7 @@ let lastTick = null;
 let activeView = 'iso';
 let mode = 'trajectory';
 let activeInverseCase = null;
+let customInverseCase = null;
 let inverseSolutionIndex = 0;
 let trajectoryWasPlaying = false;
 let inverseLiveQ = null;
@@ -669,6 +675,13 @@ const ikDescriptions = {
   inalcanzable_interior: 'El punto queda demasiado cerca del hombro.',
 };
 
+function inverseCaseDescription(current) {
+  if (current.id !== 'custom') return ikDescriptions[current.id] || '';
+  return current.solutions.length
+    ? 'Punto elegido por ti. Modelo ideal: sin límites articulares ni obstáculos.'
+    : 'Punto elegido por ti. No hay ángulos reales porque queda fuera del alcance ideal.';
+}
+
 const displayNumber = (value, decimals = 3) => Number(value).toFixed(decimals).replace('.', ',');
 const displayDegrees = (value) => displayNumber(Math.abs(value) < 0.005 ? 0 : value, 2) + '°';
 const displaySignedDegrees = (value) => (value > 0.005 ? '+' : '') + displayDegrees(value);
@@ -684,6 +697,132 @@ function jointsFromAngles([q1, q2, q3]) {
   const tipRadius = elbowRadius + L3 * Math.cos(q2 + q3);
   const tip = [tipRadius * Math.cos(q1), tipRadius * Math.sin(q1), L1 + L2 * Math.sin(q2) + L3 * Math.sin(q2 + q3)];
   return [base, shoulder, elbow, tip];
+}
+
+function wrapAngle(angle) {
+  const turn = 2 * Math.PI;
+  return ((angle + Math.PI) % turn + turn) % turn - Math.PI;
+}
+
+function makeInverseLimitPose(target, rho, h, d) {
+  const [, L2, L3] = dataset.geometry_m;
+  const q = [
+    rho > 0 ? Math.atan2(target[1], target[0]) : 0,
+    d > 0 ? Math.atan2(h, rho) : 0,
+    d > L2 + L3 ? 0 : Math.PI,
+  ];
+  const joints = jointsFromAngles(q);
+  return {
+    q,
+    joints,
+    actual: joints[3],
+    distance_to_target_m: Math.hypot(...joints[3].map((value, index) => value - target[index])),
+  };
+}
+
+function solveIdealInverse(target, tolerance = 1e-12) {
+  const [L1, L2, L3] = dataset.geometry_m;
+  const [x, y, z] = target;
+  const rho = Math.hypot(x, y);
+  const h = z - L1;
+  const d = Math.hypot(rho, h);
+  const dMin = Math.abs(L2 - L3);
+  const dMax = L2 + L3;
+  const rawD = (d ** 2 - L2 ** 2 - L3 ** 2) / (2 * L2 * L3);
+  const current = {
+    id: 'custom',
+    label: 'Punto elegido · IK ideal',
+    target: target.slice(),
+    rho,
+    h,
+    d,
+    D: rawD,
+    solutions: [],
+    posture_count: 0,
+    base_free: rho <= tolerance,
+  };
+
+  if (d < dMin - tolerance || d > dMax + tolerance) {
+    current.limit_pose = makeInverseLimitPose(target, rho, h, d);
+    return current;
+  }
+
+  const boundedDistance = Math.min(dMax, Math.max(dMin, d));
+  const D = Math.max(-1, Math.min(1, (boundedDistance ** 2 - L2 ** 2 - L3 ** 2) / (2 * L2 * L3)));
+  const sinQ3Abs = Math.sqrt(Math.max(0, 1 - D ** 2));
+  const onAxis = rho <= tolerance;
+  const radialSigns = onAxis ? [1] : [1, -1];
+  const elbowSigns = sinQ3Abs <= tolerance ? [0] : [1, -1];
+  const elbowPositions = [];
+  current.D = D;
+
+  for (const radialSign of radialSigns) {
+    const r = radialSign * rho;
+    for (const elbowSign of elbowSigns) {
+      const q3 = Math.atan2((elbowSign || 1) * sinQ3Abs, D);
+      const alpha = Math.atan2(h, r);
+      const beta = Math.atan2(L3 * Math.sin(q3), L2 + L3 * D);
+      const q2 = alpha - beta;
+      let q1 = onAxis ? 0 : Math.atan2(y, x);
+      if (radialSign === -1) q1 += Math.PI;
+      const q = [wrapAngle(q1), wrapAngle(q2), wrapAngle(q3)];
+      const joints = jointsFromAngles(q);
+      const elbow = joints[2];
+      let postureIndex = elbowPositions.findIndex((other) => Math.hypot(...elbow.map((value, index) => value - other[index])) <= 1e-9);
+      if (postureIndex < 0) {
+        postureIndex = elbowPositions.length;
+        elbowPositions.push(elbow);
+      }
+      current.solutions.push({
+        q,
+        q_deg: q.map((angle) => angle * 180 / Math.PI),
+        joints,
+        radial_sign: radialSign,
+        elbow_sign: elbowSign,
+        base_free: onAxis,
+        residual_m: Math.hypot(...joints[3].map((value, index) => value - target[index])),
+        posture: String.fromCharCode(65 + postureIndex),
+      });
+    }
+  }
+  current.posture_count = elbowPositions.length;
+  return current;
+}
+
+function ensureCustomCaseOption() {
+  let option = ui.ikCase.querySelector('option[value="custom"]');
+  if (!option) {
+    option = document.createElement('option');
+    option.value = 'custom';
+    ui.ikCase.append(option);
+  }
+  option.textContent = 'Punto elegido · IK ideal';
+}
+
+function setCustomTargetStatus(message, type = '') {
+  ui.ikCustomStatus.textContent = message;
+  ui.ikCustomStatus.className = 'ik-custom-status' + (type ? ` ${type}` : '');
+}
+
+function solveCustomTarget() {
+  if (!dataset) return;
+  const target = [ui.ikCustomX, ui.ikCustomY, ui.ikCustomZ]
+    .map((input) => Number(input.value.trim().replace(',', '.')));
+  if (!target.every(Number.isFinite)) {
+    setCustomTargetStatus('Escribe valores numéricos para X, Y y Z.', 'error');
+    return;
+  }
+  customInverseCase = solveIdealInverse(target);
+  ensureCustomCaseOption();
+  ui.ikCase.value = 'custom';
+  activateInverseCase(customInverseCase);
+  const count = customInverseCase.solutions.length;
+  setCustomTargetStatus(
+    count
+      ? `${count} ${count === 1 ? 'terna calculada' : 'ternas calculadas'} para este punto. Selecciona una para animarla.`
+      : '0 ternas: este punto queda fuera del alcance ideal.',
+    count ? 'success' : 'error',
+  );
 }
 
 function ikExplanation(current) {
@@ -746,7 +885,14 @@ function populateInverseCases() {
     option.textContent = current.label;
     ui.ikCase.append(option);
   }
+  if (customInverseCase) ensureCustomCaseOption();
   ui.ikCase.value = 'regular';
+  const regular = dataset.inverse_cases.find((current) => current.id === 'regular');
+  if (regular) {
+    [ui.ikCustomX, ui.ikCustomY, ui.ikCustomZ].forEach((input, index) => {
+      input.value = regular.target[index].toFixed(6);
+    });
+  }
 }
 
 function populateInverseSolutions() {
@@ -898,7 +1044,7 @@ function renderInverseScene() {
   desiredMarker.children[0].material.depthTest = Boolean(selected);
   saturationRing.visible = false;
   inverseReachOuter.visible = true;
-  inverseReachInner.visible = current.id === 'inalcanzable_interior';
+  inverseReachInner.visible = current.d < Math.abs(dataset.geometry_m[1] - dataset.geometry_m[2]);
   showInverseGhost(selected, yawOffset);
   const connectorPositions = errorConnector.geometry.attributes.position;
   connectorPositions.setXYZ(0, ...jointCoordinates[3]);
@@ -1018,22 +1164,28 @@ function renderInverseTelemetry(selected, pose, qNow, jointCoordinates) {
   ui.ikYawValue.textContent = displayDegrees(qDegrees[0]);
 }
 
-function selectInverseCase() {
-  if (!dataset?.inverse_cases) return;
-  const found = dataset.inverse_cases.find((item) => item.id === ui.ikCase.value);
-  if (!found) throw new Error('No se encontró el caso de cinemática inversa seleccionado.');
+function activateInverseCase(found) {
   stopInverseTour();
   activeInverseCase = found;
   inverseSolutionIndex = 0;
   inverseLiveQ = found.solutions[0]?.q.slice() || null;
   ui.ikYaw.value = '0';
   ui.ikYawWrap.hidden = !found.base_free;
-  ui.ikCaseDescription.textContent = ikDescriptions[found.id] || '';
+  ui.ikCaseDescription.textContent = inverseCaseDescription(found);
   ui.sceneTitle.textContent = found.label;
   populateInverseSolutions();
   updateInverseMeasurementGuide(found);
   updateInverseTourControls();
   renderInverseScene();
+}
+
+function selectInverseCase() {
+  if (!dataset?.inverse_cases) return;
+  const found = ui.ikCase.value === 'custom'
+    ? customInverseCase
+    : dataset.inverse_cases.find((item) => item.id === ui.ikCase.value);
+  if (!found) throw new Error('No se encontró el caso de cinemática inversa seleccionado.');
+  activateInverseCase(found);
 }
 
 function setMode(next) {
@@ -1146,6 +1298,14 @@ function wireControls() {
   ui.modeTrajectory.addEventListener('click', () => setMode('trajectory'));
   ui.modeInverse.addEventListener('click', () => setMode('inverse'));
   ui.ikCase.addEventListener('change', selectInverseCase);
+  ui.ikSolveTarget.addEventListener('click', solveCustomTarget);
+  [ui.ikCustomX, ui.ikCustomY, ui.ikCustomZ].forEach((input) => {
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      solveCustomTarget();
+    });
+  });
   ui.ikSolutions.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-index]');
     if (!button || mode !== 'inverse') return;
